@@ -3044,6 +3044,10 @@
                    spellcheck="false" autocomplete="off"
                    style="width:190px; background:rgba(0,0,0,0.35); color:var(--fg-0); border:1px solid rgba(255,255,255,0.08); border-radius:8px; padding:9px 10px;" />
             <button class="btn-primary" id="game-download-start">Inject &amp; download</button>
+            <button id="game-download-cancel"
+                    style="display:none; padding:9px 18px; border-radius:8px; border:1px solid rgba(255,80,80,0.4); background:rgba(180,30,30,0.45); color:#ffaaaa; font-size:14px; cursor:pointer;">
+              ✕ Cancel
+            </button>
           </div>
           <div id="game-download-progress"
                style="display:none; height:8px; border-radius:4px; background:rgba(255,255,255,0.06); margin-top:10px; overflow:hidden;">
@@ -6318,6 +6322,7 @@
   const gameDlUrl    = document.getElementById('game-download-url');
   const gameDlName   = document.getElementById('game-download-name');
   const gameDlStart  = document.getElementById('game-download-start');
+  const gameDlCancel = document.getElementById('game-download-cancel');
   const gameDlStatus = document.getElementById('game-download-status');
   const gameDlDest   = document.getElementById('game-download-dest');
   const gameDlProg   = document.getElementById('game-download-progress');
@@ -6352,7 +6357,8 @@
     }
 
     const active = gameDlActive(state);
-    if (gameDlStart) gameDlStart.disabled = active;
+    if (gameDlStart)  gameDlStart.disabled = active;
+    if (gameDlCancel) gameDlCancel.style.display = active ? '' : 'none';
 
     if (state === 'idle') {
       gameDlStatus.textContent = 'No download running.';
@@ -6440,6 +6446,28 @@
     });
     gameDlUrl.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') gameDlStart.click();
+    });
+  }
+
+  if (gameDlCancel) {
+    gameDlCancel.addEventListener('click', async () => {
+      gameDlCancel.disabled = true;
+      gameDlCancel.textContent = 'Cancelling…';
+      try {
+        const r = await fetch('/api/downloader/cancel', { cache: 'no-store' });
+        const j = await r.json();
+        if (j.ok) {
+          renderGameDownloadStatus(j);
+          showToast('Download cancelled', 'ok');
+        } else {
+          showToast(j.error || 'cancel failed', 'err');
+        }
+      } catch (e) {
+        showToast('cancel: ' + e.message, 'err');
+      } finally {
+        gameDlCancel.disabled = false;
+        gameDlCancel.textContent = '✕ Cancel';
+      }
     });
   }
 

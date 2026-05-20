@@ -18,16 +18,8 @@
 
 #define MAX_PATH      512
 #define UDP_BUF_SIZE  256
-
-/* Throughput tuning -------------------------------------------------- */
-/* Aumenta o buffer de recepção do socket de ~128 KB (padrão) para 4 MB.
-   O kernel arredonda para o máximo permitido; na prática isso quase sempre
-   elimina o gargalo de throughput em links >= ~100 Mbps.              */
-#define SOCK_RCVBUF     (4 * 1024 * 1024)
-/* Buffer de escrita em disco: reduz o número de syscalls write() e
-   diminui a fragmentação de I/O quando o disco está ocupado.          */
-#define FILE_WRITE_BUF  (2 * 1024 * 1024)
-
+#define SOCK_RCVBUF     (8 * 1024 * 1024)
+#define FILE_WRITE_BUF  (4 * 1024 * 1024)
 #define PATCH_URL_MARKER  "SL_EXFAT_FFPKG_URL="
 #define PATCH_DEST_MARKER "SL_EXFAT_FFPKG_DEST="
 #define PATCH_PORT_MARKER "SL_EXFAT_FFPKG_PORT="

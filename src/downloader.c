@@ -19,6 +19,8 @@
 #include <time.h>
 #include <unistd.h>
 
+#include <signal.h>
+
 #include <microhttpd.h>
 
 #include "downloader.h"
@@ -452,9 +454,44 @@ start_request(struct MHD_Connection *conn) {
   return ret;
 }
 
+static enum MHD_Result
+cancel_request(struct MHD_Connection *conn) {
+  pthread_mutex_lock(&g_dl_lock);
+  dl_state_t state = g_dl.state;
+  pthread_mutex_unlock(&g_dl_lock);
+
+  if(state != DL_STATE_STARTING && state != DL_STATE_RUNNING) {
+    return serve_error(conn, MHD_HTTP_CONFLICT,
+                       "no active download to cancel");
+  }
+
+  /* Send SIGTERM to the downloader subprocess. It responds with a
+     "cancelled" UDP packet when it actually exits; we also mark the
+     state optimistically so the UI responds immediately without
+     waiting for the next poll round. */
+  int pid = sys_find_pid_by_name("exFAT_FFPKG.elf");
+  if(pid > 0) {
+    kill((pid_t)pid, SIGTERM);
+  }
+
+  pthread_mutex_lock(&g_dl_lock);
+  if(g_dl.state == DL_STATE_STARTING || g_dl.state == DL_STATE_RUNNING) {
+    g_dl.state       = DL_STATE_CANCELLED;
+    g_dl.finished_at = time(NULL);
+    copy_string(g_dl.status, sizeof(g_dl.status), "cancelled");
+  }
+  cJSON *r = cJSON_CreateObject();
+  status_to_json_locked(r);
+  pthread_mutex_unlock(&g_dl_lock);
+  enum MHD_Result ret = serve_json(conn, MHD_HTTP_OK, r);
+  cJSON_Delete(r);
+  return ret;
+}
+
 enum MHD_Result
 downloader_request(struct MHD_Connection *conn, const char *url) {
   if(!strcmp(url, "/api/downloader/start"))  return start_request(conn);
   if(!strcmp(url, "/api/downloader/status")) return status_request(conn);
+  if(!strcmp(url, "/api/downloader/cancel")) return cancel_request(conn);
   return serve_error(conn, MHD_HTTP_NOT_FOUND, "no such endpoint");
 }

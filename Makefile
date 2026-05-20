@@ -103,9 +103,9 @@ clean:
 gen/%.c: assets/% | gen
 	$(PYTHON) gen-asset-module.py --path $* $< > $@
 
-payloads/exFAT_FFPKG.elf: duskaryon-downloader-src/main.c duskaryon-downloader-src/Makefile
-	$(MAKE) -C duskaryon-downloader-src PS5_PAYLOAD_SDK="$(PS5_PAYLOAD_SDK)"
-	cp duskaryon-downloader-src/exFAT_FFPKG.elf $@
+payloads/exFAT_FFPKG.elf: exFAT_FFPKG/main.c exFAT_FFPKG/Makefile
+	$(MAKE) -C exFAT_FFPKG PS5_PAYLOAD_SDK="$(PS5_PAYLOAD_SDK)"
+	cp exFAT_FFPKG/exFAT_FFPKG.elf $@
 
 $(BIN): $(SRCS) $(GEN_SRCS) $(EMBEDDED)
 	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $(SRCS) $(GEN_SRCS) $(LDADD)

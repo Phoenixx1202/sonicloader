@@ -1,8 +1,8 @@
 /* Sonic Loader - exFAT / FFPKG downloader payload bridge.
 
-   The downloader payload receives URL / destination / UDP port through
-   argv, downloads in its own process, and posts small JSON progress
-   packets back to 127.0.0.1:9876. This module owns the UI-facing state. */
+   Before injection, sys.c patches URL / destination / UDP port into a
+   copy of exFAT_FFPKG.elf. The payload downloads in its own process and
+   posts small JSON progress packets back to 127.0.0.1:9876. */
 
 #include <arpa/inet.h>
 #include <ctype.h>

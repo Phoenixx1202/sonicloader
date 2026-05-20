@@ -719,6 +719,38 @@ spawn_embedded_argv(const uint8_t *elf, size_t elf_size, char **argv) {
 
 /* ─────── ftpsrv toggle + port + auth + transfer-type config ─────── */
 
+static uint8_t*
+find_bytes(uint8_t *buf, size_t buf_size, const char *needle,
+           size_t needle_size) {
+  if(!buf || !needle || needle_size == 0 || buf_size < needle_size) return NULL;
+  for(size_t i = 0; i + needle_size <= buf_size; i++) {
+    if(memcmp(buf + i, needle, needle_size) == 0) return buf + i;
+  }
+  return NULL;
+}
+
+static int
+patch_string_slot(uint8_t *elf, size_t elf_size, const char *marker,
+                  size_t slot_size, const char *value) {
+  size_t marker_len;
+  size_t value_len;
+  uint8_t *slot;
+
+  if(!elf || !marker || !value) return -1;
+  marker_len = strlen(marker);
+  value_len  = strlen(value);
+  if(marker_len == 0 || marker_len + value_len + 1 > slot_size) return -1;
+
+  slot = find_bytes(elf, elf_size, marker, marker_len);
+  if(!slot) return -1;
+  if((size_t)(slot - elf) + slot_size > elf_size) return -1;
+
+  memset(slot, 0, slot_size);
+  memcpy(slot, marker, marker_len);
+  memcpy(slot + marker_len, value, value_len + 1);
+  return 0;
+}
+
 static atomic_int g_ftpsrv_port = FTPSRV_DEFAULT_PORT;
 
 /* User/pass/type are mostly read-mostly + small; using a static buffer
@@ -1395,21 +1427,38 @@ sys_spawn_app_dumper(void) {
 
 int
 sys_spawn_exfat_ffpkg_downloader(const char *url, const char *dest, int port) {
+  static const char url_marker[]  = "SL_EXFAT_FFPKG_URL=";
+  static const char dest_marker[] = "SL_EXFAT_FFPKG_DEST=";
+  static const char port_marker[] = "SL_EXFAT_FFPKG_PORT=";
+
   if(!url || !*url || !dest || !*dest) return -1;
   if(port <= 0 || port > 65535) port = 9876;
 
+  uint8_t *patched = malloc(exfat_ffpkg_elf_size);
+  if(!patched) return -1;
+  memcpy(patched, exfat_ffpkg_elf, exfat_ffpkg_elf_size);
+
   char port_arg[16];
   snprintf(port_arg, sizeof(port_arg), "%d", port);
-  char *argv[5] = {
+  if(patch_string_slot(patched, exfat_ffpkg_elf_size,
+                       url_marker, 1024, url) != 0 ||
+     patch_string_slot(patched, exfat_ffpkg_elf_size,
+                       dest_marker, 512, dest) != 0 ||
+     patch_string_slot(patched, exfat_ffpkg_elf_size,
+                       port_marker, 32, port_arg) != 0) {
+    notify("sonic-loader: failed to patch exFAT_FFPKG.elf");
+    fprintf(stderr, "sonic-loader: failed to patch exFAT_FFPKG.elf\n");
+    free(patched);
+    return -1;
+  }
+
+  char *argv[2] = {
     "exFAT_FFPKG.elf",
-    (char*)url,
-    (char*)dest,
-    port_arg,
     0
   };
-  return spawn_embedded_argv(exfat_ffpkg_elf,
-                             exfat_ffpkg_elf_size,
-                             argv);
+  int rc = spawn_embedded_argv(patched, exfat_ffpkg_elf_size, argv);
+  free(patched);
+  return rc;
 }
 
 

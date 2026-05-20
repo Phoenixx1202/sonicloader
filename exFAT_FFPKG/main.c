@@ -1,10 +1,3 @@
-/*
- * Downloader Payload — PS5
- *
- * Baixa via libcurl com retomada automática (arquivo .resume).
- * Reporta progresso via UDP → 127.0.0.1:<port> para o Unity (1 pacote/s).
- * Notificações nativas no PS5: Início, a cada 25%, Conclusão ou Erro.
- */
 
 #include <stdarg.h>
 #include <stdint.h>
@@ -20,16 +13,19 @@
 #include <unistd.h>
 #include <curl/curl.h>
 
-/* ─── Configurações de Destino ───────────────────────────────────────────── */
 
-#define TARGET_URL    "http://cdn.duskaryon.pp.ua/PPSA23000.exfat"
-#define TARGET_DEST   "/data/etaHEN/games/PPSA23000.exfat"
 #define TARGET_PORT   9876
 
 #define MAX_PATH      512
 #define UDP_BUF_SIZE  256
 
-/* ─── Notificação nativa PS5 ─────────────────────────────────────────────── */
+#define PATCH_URL_MARKER  "SL_EXFAT_FFPKG_URL="
+#define PATCH_DEST_MARKER "SL_EXFAT_FFPKG_DEST="
+#define PATCH_PORT_MARKER "SL_EXFAT_FFPKG_PORT="
+
+static char g_patch_url[1024]  = PATCH_URL_MARKER;
+static char g_patch_dest[512]  = PATCH_DEST_MARKER;
+static char g_patch_port[32]   = PATCH_PORT_MARKER "9876";
 
 typedef struct {
     int  type;
@@ -66,8 +62,6 @@ static void ps5_notify(const char *fmt, ...)
     sceKernelSendNotificationRequest(0, &req, sizeof(req), 0);
 }
 
-/* ─── Contexto do download ──────────────────────────────────────────────── */
-
 typedef struct {
     int                udp_sock;
     struct sockaddr_in udp_addr;
@@ -78,7 +72,6 @@ typedef struct {
     int                last_notif_pct;
 } dl_ctx_t;
 
-/* ─── Utilidades ─────────────────────────────────────────────────────────── */
 
 static long get_file_size(const char *path)
 {
@@ -102,6 +95,12 @@ static const char *file_basename(const char *path)
 {
     const char *slash = strrchr(path, '/');
     return slash ? slash + 1 : path;
+}
+
+static const char *patched_value(const char *slot, size_t marker_len)
+{
+    const char *value = slot + marker_len;
+    return value[0] ? value : NULL;
 }
 
 static int get_system_dns(char *out, size_t outsz)
@@ -142,7 +141,6 @@ static void fmt_size(char *buf, size_t bufsz, int64_t bytes)
         snprintf(buf, bufsz, "%lld B", (long long)bytes);
 }
 
-/* ─── UDP ────────────────────────────────────────────────────────────────── */
 
 static void udp_send(dl_ctx_t *ctx,
                      int pct, double speed,
@@ -163,7 +161,6 @@ static void udp_send(dl_ctx_t *ctx,
            (struct sockaddr *)&ctx->udp_addr, sizeof(ctx->udp_addr));
 }
 
-/* ─── CURL: callback de progresso ───────────────────────────────────────── */
 
 static int curl_progress_cb(void *clientp, int64_t dltotal, int64_t dlnow, int64_t ultotal, int64_t ulnow)
 {
@@ -173,7 +170,6 @@ static int curl_progress_cb(void *clientp, int64_t dltotal, int64_t dlnow, int64
     if (ctx->cancelled)
         return CURLE_ABORTED_BY_CALLBACK;
 
-    /* Rate-limit UDP: 1 pacote por segundo */
     time_t now = time(NULL);
     if (now == ctx->last_udp_time)
         return 0;
@@ -188,10 +184,8 @@ static int curl_progress_cb(void *clientp, int64_t dltotal, int64_t dlnow, int64
     int64_t downloaded = (int64_t)(dlnow + ctx->resume_offset);
     int pct = (total > 0) ? (int)((double)downloaded / (double)total * 100.0) : 0;
 
-    /* Envia progresso para o Unity via UDP continuamente */
     udp_send(ctx, pct, speed, downloaded, total, "downloading");
 
-    /* Notificação no PS5 a cada 25% (evita congelamento visual e dá feedback ao usuário) */
     int notif_step = 25;
     int current_step = (pct / notif_step) * notif_step;
 
@@ -203,18 +197,27 @@ static int curl_progress_cb(void *clientp, int64_t dltotal, int64_t dlnow, int64
     return 0;
 }
 
-/* ─── Ponto de entrada ──────────────────────────────────────────────────── */
-
 int main(int argc, char **argv)
 {
-    const char *url   = (argc > 1 && argv[1] && argv[1][0]) ? argv[1] : TARGET_URL;
-    const char *dest  = (argc > 2 && argv[2] && argv[2][0]) ? argv[2] : TARGET_DEST;
-    int  port         = (argc > 3 && argv[3] && argv[3][0]) ? atoi(argv[3]) : TARGET_PORT;
+    const char *url   = patched_value(g_patch_url,  sizeof(PATCH_URL_MARKER)  - 1);
+    const char *dest  = patched_value(g_patch_dest, sizeof(PATCH_DEST_MARKER) - 1);
+    const char *pstr  = patched_value(g_patch_port, sizeof(PATCH_PORT_MARKER) - 1);
+    int  port         = pstr ? atoi(pstr) : TARGET_PORT;
+
+    if (!url && argc > 1 && argv[1] && argv[1][0]) url = argv[1];
+    if (!dest && argc > 2 && argv[2] && argv[2][0]) dest = argv[2];
+    if ((port <= 0 || port > 65535) && argc > 3 && argv[3] && argv[3][0])
+        port = atoi(argv[3]);
     if (port <= 0 || port > 65535) port = TARGET_PORT;
+
+    if (!url || !url[0] || !dest || !dest[0]) {
+        ps5_notify("exFAT/FFPKG\nURL ou destino ausente no payload.");
+        sleep(2);
+        return 1;
+    }
 
     const char *fname = file_basename(dest);
 
-    /* ── Configura socket UDP ─────────────────────────────────────────── */
     dl_ctx_t ctx;
     memset(&ctx, 0, sizeof(ctx));
     ctx.udp_sock       = -1;
@@ -233,10 +236,8 @@ int main(int argc, char **argv)
     udp_send(&ctx, 0, 0.0, 0, 0, "starting");
     ps5_notify("Download Iniciado\n%s", fname);
 
-    /* ── Garante diretório de destino ────────────────────────────────── */
     ensure_dir(dest);
 
-    /* ── Verifica arquivo parcial (.resume) ──────────────────────────── */
     char resume_path[MAX_PATH + 8];
     snprintf(resume_path, sizeof(resume_path), "%s.resume", dest);
 
@@ -266,11 +267,11 @@ int main(int argc, char **argv)
         udp_send(&ctx, 0, 0.0, 0, 0, "error:open_file");
         ps5_notify("Erro de Escrita\nNao foi possivel criar o arquivo em:\n%s", dest);
         if (ctx.udp_sock >= 0) close(ctx.udp_sock);
-        sleep(2); /* Garante que a notificação apareça antes de fechar */
+        sleep(2);
         return 1;
     }
 
-    /* ── CURL ────────────────────────────────────────────────────────── */
+
     curl_global_init(CURL_GLOBAL_ALL);
     ctx.curl = curl_easy_init();
 
@@ -298,9 +299,8 @@ int main(int argc, char **argv)
     curl_easy_setopt(ctx.curl, CURLOPT_IPRESOLVE,        CURL_IPRESOLVE_V4);
     curl_easy_setopt(ctx.curl, CURLOPT_DNS_CACHE_TIMEOUT, 60L);
 
-    /* Otimizações de Velocidade do libcurl */
-    curl_easy_setopt(ctx.curl, CURLOPT_BUFFERSIZE, 1048576L); /* Buffer de 1MB para I/O mais rápido */
-    curl_easy_setopt(ctx.curl, CURLOPT_TCP_KEEPALIVE, 1L);    /* Mantém a conexão viva na rede */
+    curl_easy_setopt(ctx.curl, CURLOPT_BUFFERSIZE, 1048576L); 
+    curl_easy_setopt(ctx.curl, CURLOPT_TCP_KEEPALIVE, 1L); 
 
     curl_easy_setopt(ctx.curl, CURLOPT_SSL_VERIFYHOST,   0L);
     curl_easy_setopt(ctx.curl, CURLOPT_SSL_VERIFYPEER,   0L);
@@ -325,7 +325,6 @@ int main(int argc, char **argv)
     fclose(fp);
     curl_global_cleanup();
 
-    /* ── Resultado ───────────────────────────────────────────────────── */
     int exit_ok = 0;
     if (result == CURLE_OK) {
         if (rename(resume_path, dest) != 0) {
@@ -348,8 +347,6 @@ int main(int argc, char **argv)
     if (ctx.udp_sock >= 0)
         close(ctx.udp_sock);
 
-    /* Pausa de segurança para garantir que a notificação final seja exibida 
-       antes que o processo ELF seja destruído pelo sistema operacional do PS5 */
     sleep(2);
 
     return exit_ok ? 0 : 1;

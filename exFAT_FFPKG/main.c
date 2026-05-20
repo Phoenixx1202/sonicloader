@@ -19,6 +19,15 @@
 #define MAX_PATH      512
 #define UDP_BUF_SIZE  256
 
+/* Throughput tuning -------------------------------------------------- */
+/* Aumenta o buffer de recepção do socket de ~128 KB (padrão) para 4 MB.
+   O kernel arredonda para o máximo permitido; na prática isso quase sempre
+   elimina o gargalo de throughput em links >= ~100 Mbps.              */
+#define SOCK_RCVBUF     (4 * 1024 * 1024)
+/* Buffer de escrita em disco: reduz o número de syscalls write() e
+   diminui a fragmentação de I/O quando o disco está ocupado.          */
+#define FILE_WRITE_BUF  (2 * 1024 * 1024)
+
 #define PATCH_URL_MARKER  "SL_EXFAT_FFPKG_URL="
 #define PATCH_DEST_MARKER "SL_EXFAT_FFPKG_DEST="
 #define PATCH_PORT_MARKER "SL_EXFAT_FFPKG_PORT="
@@ -139,6 +148,23 @@ static void fmt_size(char *buf, size_t bufsz, int64_t bytes)
         snprintf(buf, bufsz, "%.1f KB", (double)bytes / 1024.0);
     else
         snprintf(buf, bufsz, "%lld B", (long long)bytes);
+}
+
+
+/* sockopt callback — solicitado pelo curl antes de conectar.
+   Aumenta o buffer de recepção do socket para SOCK_RCVBUF, o que permite
+   que o kernel absorva rajadas de dados da NIC sem bloquear o remetente
+   enquanto o curl ainda está processando o chunk anterior.
+   O retorno é sempre CURL_SOCKOPT_OK pois a falha no setsockopt é
+   não-fatal: o download continua, só que sem o buffer ampliado.       */
+static int
+sockopt_cb(void *clientp, curl_socket_t curlfd, curlsocktype purpose)
+{
+    (void)clientp; (void)purpose;
+    int rcvbuf = SOCK_RCVBUF;
+    setsockopt((int)curlfd, SOL_SOCKET, SO_RCVBUF,
+               &rcvbuf, sizeof(rcvbuf));
+    return CURL_SOCKOPT_OK;
 }
 
 
@@ -271,6 +297,13 @@ int main(int argc, char **argv)
         return 1;
     }
 
+    /* Aumenta o buffer de escrita do libc para FILE_WRITE_BUF.
+       Sem isso, cada chunk do curl dispara um write() de 4–8 KB, gerando
+       dezenas de milhares de syscalls por GB. Com 2 MB de buffer, o I/O
+       fica muito mais batched e o disco (ou exFAT) agradece.           */
+    static char s_file_wbuf[FILE_WRITE_BUF];
+    setvbuf(fp, s_file_wbuf, _IOFBF, FILE_WRITE_BUF);
+
 
     curl_global_init(CURL_GLOBAL_ALL);
     ctx.curl = curl_easy_init();
@@ -299,8 +332,15 @@ int main(int argc, char **argv)
     curl_easy_setopt(ctx.curl, CURLOPT_IPRESOLVE,        CURL_IPRESOLVE_V4);
     curl_easy_setopt(ctx.curl, CURLOPT_DNS_CACHE_TIMEOUT, 60L);
 
-    curl_easy_setopt(ctx.curl, CURLOPT_BUFFERSIZE, 1048576L); 
-    curl_easy_setopt(ctx.curl, CURLOPT_TCP_KEEPALIVE, 1L); 
+    curl_easy_setopt(ctx.curl, CURLOPT_BUFFERSIZE,      1048576L);  /* 1 MiB buffer interno do curl */
+    curl_easy_setopt(ctx.curl, CURLOPT_TCP_KEEPALIVE,   1L);
+    curl_easy_setopt(ctx.curl, CURLOPT_TCP_KEEPIDLE,    30L);       /* inicia keepalive após 30 s idle */
+    curl_easy_setopt(ctx.curl, CURLOPT_TCP_KEEPINTVL,   10L);       /* retransmite probe a cada 10 s   */
+    curl_easy_setopt(ctx.curl, CURLOPT_TCP_NODELAY,     1L);        /* desativa Nagle; reduz latência ACK */
+    curl_easy_setopt(ctx.curl, CURLOPT_SOCKOPTFUNCTION, sockopt_cb);/* amplia buffer de recepção do socket */
+    /* Tenta HTTP/2 sobre TLS; se o servidor não suportar, cai para 1.1
+       automaticamente — sem risco de quebrar downloads existentes.    */
+    curl_easy_setopt(ctx.curl, CURLOPT_HTTP_VERSION,    CURL_HTTP_VERSION_2TLS);
 
     curl_easy_setopt(ctx.curl, CURLOPT_SSL_VERIFYHOST,   0L);
     curl_easy_setopt(ctx.curl, CURLOPT_SSL_VERIFYPEER,   0L);

@@ -36,26 +36,34 @@ void sys_spawn_embedded_payloads(void);
 int sys_backpork_set_enabled(int on);
 int sys_backpork_is_running(void);
 
-/* Bundled etaHEN daemon (etaHEN/etaHEN release). On by default in
-   the etaHEN-bundled build (off in the no-etaHEN variant where the
-   ELF isn't present). Both variants can JB apps like Itemzflow /
-   xplorer through Sonic Loader's own IPC daemon, but the etaHEN
-   toolbox makes that elevation noticeably faster because it keeps
-   PID-elevation primitives warm. Disable from Settings if you don't
-   want the toolbox running. The daemon sets its own thread name to
-   "etaHEN.elf" so we can find/kill it. */
-int sys_etahen_set_enabled(int on);
-int sys_etahen_is_running(void);
-/* 1 if this build was compiled with etaHEN bundled, 0 otherwise.
-   The UI uses this to hide the etaHEN Settings section in no-etaHEN
-   builds. */
-int sys_etahen_supported(void);
+/* nanoDNS toggle. drakmor/nanoDNS — bundled DNS forwarder +
+   override engine, listens on 127.0.0.1:53. Auto-spawned at boot
+   so the home-screen tile auto-install (and any other community-
+   domain resolver call) works without the user changing PS5 DNS
+   settings. The toggle is here so users who run their own DNS
+   stack can stop nanoDNS without rebuilding. */
+int sys_nanodns_set_enabled(int on);
+int sys_nanodns_is_running(void);
+
+/* Bundled Lapy JB Daemon (replaces the etaHEN-compatible jb.c IPC
+   daemon entirely). Spawned at boot, listens on its own polling
+   path and handles PID escalation for apps that previously needed
+   etaHEN's HijackerCommand protocol. on=1 spawns the bundled
+   lapyjb.elf if it isn't already running; on=0 kills any running
+   instance. Returns 1 if running afterwards, 0 if stopped, -1 on
+   error. Process is identified by name "lapyjb.elf". */
+int sys_lapyjb_set_enabled(int on);
+int sys_lapyjb_is_running(void);
 
 /* EchoStretch/ps5-app-dumper — one-shot spawn. Dumps mounted apps
    to a connected USB drive. The user presses Run from Settings; the
    ELF runs detached, posts its own SceShellCore notifications, and
    exits when finished. */
 int sys_spawn_app_dumper(void);
+
+/* exFAT/FFPKG downloader payload. Spawns a detached download worker that
+   writes `url` to `dest` and reports JSON progress to UDP 127.0.0.1:port. */
+int sys_spawn_exfat_ffpkg_downloader(const char *url, const char *dest, int port);
 
 /* Return the userId (hex value PS5 firmware assigns to the signed-in
    account, e.g. 0x1396ECE8) of the foreground user, or 0 if no user is

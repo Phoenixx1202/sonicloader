@@ -800,43 +800,135 @@ apply_to_dir(struct MHD_Connection *conn,
   int copied = 0, failed = 0;
   cJSON *files = cJSON_CreateArray();
 
-  /* The four DDS files keep their per-size names so png_to_dds.py
-     consumers can pick them up: avatar64.dds, avatar128.dds,
-     avatar260.dds, avatar440.dds. */
-  for(int i=0; i<AVATAR_NSIZES; i++) {
-    int sz = AVATAR_SIZES[i];
-    char src[256], dst[512];
-    snprintf(src, sizeof(src), "%s/avatar%d.dds", AVATAR_WORK, sz);
-    snprintf(dst, sizeof(dst), "%s%savatar%d.dds", dest, sep, sz);
+  /* Each PSN profile cache directory expects the same image emitted
+     under TWO naming families:
+       - avatar{64,128,260,440}.dds  + avatar.png   (profile picture)
+       - picture{64,128,260,440}.dds + picture.png  (cover/banner art)
+     They render in different UI contexts but Sony resolves them from
+     the same on-disk cache, so we ship identical bytes under both
+     names. The user uploads one source image and gets both flows. */
+  static const char *const KIND_NAMES[] = { "avatar", "picture" };
+  for(int k=0; k<2; k++) {
+    const char *kind = KIND_NAMES[k];
+    for(int i=0; i<AVATAR_NSIZES; i++) {
+      int sz = AVATAR_SIZES[i];
+      char src[256], dst[512];
+      /* The encode pipeline only writes avatar*.dds in the work dir;
+         picture*.dds reuses the same source bytes via copy_file. */
+      snprintf(src, sizeof(src), "%s/avatar%d.dds", AVATAR_WORK, sz);
+      snprintf(dst, sizeof(dst), "%s%s%s%d.dds", dest, sep, kind, sz);
 
-    cJSON *e = cJSON_CreateObject();
-    cJSON_AddStringToObject(e, "src", src);
-    cJSON_AddStringToObject(e, "dst", dst);
-    if(copy_file(src, dst) == 0) {
-      cJSON_AddBoolToObject(e, "ok", 1);
-      copied++;
-    } else {
-      cJSON_AddBoolToObject(e, "ok", 0);
-      cJSON_AddStringToObject(e, "error", strerror(errno));
-      failed++;
+      cJSON *e = cJSON_CreateObject();
+      cJSON_AddStringToObject(e, "src", src);
+      cJSON_AddStringToObject(e, "dst", dst);
+      if(copy_file(src, dst) == 0) {
+        cJSON_AddBoolToObject(e, "ok", 1);
+        copied++;
+      } else {
+        cJSON_AddBoolToObject(e, "ok", 0);
+        cJSON_AddStringToObject(e, "error", strerror(errno));
+        failed++;
+      }
+      cJSON_AddItemToArray(files, e);
     }
-    cJSON_AddItemToArray(files, e);
   }
 
-  /* And the source PNG (renamed to avatar.png for the profile cache). */
+  /* And the source PNG copied twice: avatar.png + picture.png. */
   char src_path[512];
-  if(find_latest_source(src_path, sizeof(src_path)) == 0) {
-    char dst_png[512];
-    snprintf(dst_png, sizeof(dst_png), "%s%savatar.png", dest, sep);
+  int have_src = (find_latest_source(src_path, sizeof(src_path)) == 0);
+  if(have_src) {
+    for(int k=0; k<2; k++) {
+      char dst_png[512];
+      snprintf(dst_png, sizeof(dst_png),
+               "%s%s%s.png", dest, sep, KIND_NAMES[k]);
+      cJSON *e = cJSON_CreateObject();
+      cJSON_AddStringToObject(e, "src", src_path);
+      cJSON_AddStringToObject(e, "dst", dst_png);
+      if(copy_file(src_path, dst_png) == 0) {
+        cJSON_AddBoolToObject(e, "ok", 1);
+        copied++;
+      } else {
+        cJSON_AddBoolToObject(e, "ok", 0);
+        cJSON_AddStringToObject(e, "error", strerror(errno));
+        failed++;
+      }
+      cJSON_AddItemToArray(files, e);
+    }
+  }
+
+  /* online.json — the PSN profile-cache metadata sidecar. The PS5
+     rendering paths read the .dds files directly from this dir, so
+     the URL fields are placeholders that point at known-static Sony
+     CDN slots; if the OS ever invalidates the cache and tries to
+     re-fetch, it'll land on a stock fallback avatar rather than a
+     broken image. firstName/lastName carry the PSN online ID we
+     pulled from sys_get_foreground_user(); trophySummary is the
+     "level 1, no trophies" placeholder copied from a stock dump.
+     Format mirrors a real PSN online.json verbatim (single line, no
+     pretty-printing) so the system parser doesn't choke. */
+  {
+    /* user_label is "Name (0x<hex>)" — pull just the bare name out. */
+    char online_name[64] = "";
+    if(user_label) {
+      const char *paren = strrchr(user_label, '(');
+      size_t namelen = paren ? (size_t)(paren - user_label) : strlen(user_label);
+      while(namelen > 0 && user_label[namelen-1] == ' ') namelen--;
+      if(namelen >= sizeof(online_name)) namelen = sizeof(online_name) - 1;
+      memcpy(online_name, user_label, namelen);
+      online_name[namelen] = 0;
+    }
+
+    cJSON *oj = cJSON_CreateObject();
+    cJSON_AddStringToObject(oj, "avatarUrl",
+        "http://static-resource.np.community.playstation.net/"
+        "avatar_xl/WWS_E/E0012_XL.png");
+    cJSON_AddStringToObject(oj, "firstName", online_name);
+    cJSON_AddStringToObject(oj, "lastName",  "");
+    cJSON_AddStringToObject(oj, "pictureUrl",
+        "https://image.api.np.km.playstation.net/images/"
+        "?format=png&w=440&h=440"
+        "&image=https%3A%2F%2Fkfscdn.api.np.km.playstation.net"
+        "%2F00000000000008%2F000000000000003.png"
+        "&sign=blablabla019501");
+    cJSON_AddStringToObject(oj, "trophySummary",
+        "{\"level\":1,\"progress\":0,\"earnedTrophies\":"
+        "{\"platinum\":0,\"gold\":0,\"silver\":0,\"bronze\":0}}");
+    cJSON_AddStringToObject(oj, "isOfficiallyVerified", "true");
+
+    char *body = cJSON_PrintUnformatted(oj);
+    cJSON_Delete(oj);
+
+    char online_path[512];
+    snprintf(online_path, sizeof(online_path),
+             "%s%sonline.json", dest, sep);
     cJSON *e = cJSON_CreateObject();
-    cJSON_AddStringToObject(e, "src", src_path);
-    cJSON_AddStringToObject(e, "dst", dst_png);
-    if(copy_file(src_path, dst_png) == 0) {
-      cJSON_AddBoolToObject(e, "ok", 1);
-      copied++;
+    cJSON_AddStringToObject(e, "src", "<generated>");
+    cJSON_AddStringToObject(e, "dst", online_path);
+    if(body) {
+      int fd = open(online_path, O_CREAT | O_WRONLY | O_TRUNC, 0644);
+      int rc = -1;
+      if(fd >= 0) {
+        size_t blen = strlen(body), off = 0;
+        while(off < blen) {
+          ssize_t w = write(fd, body + off, blen - off);
+          if(w <= 0) break;
+          off += (size_t)w;
+        }
+        if(off == blen) rc = 0;
+        close(fd);
+      }
+      free(body);
+      if(rc == 0) {
+        cJSON_AddBoolToObject(e, "ok", 1);
+        copied++;
+      } else {
+        cJSON_AddBoolToObject(e, "ok", 0);
+        cJSON_AddStringToObject(e, "error", strerror(errno));
+        failed++;
+      }
     } else {
       cJSON_AddBoolToObject(e, "ok", 0);
-      cJSON_AddStringToObject(e, "error", strerror(errno));
+      cJSON_AddStringToObject(e, "error", "cJSON_PrintUnformatted failed");
       failed++;
     }
     cJSON_AddItemToArray(files, e);

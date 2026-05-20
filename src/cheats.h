@@ -40,3 +40,10 @@ void cheats_init(void);
 /* Master enable flag — when off, no cheats are applied/reverted. */
 int  cheats_engine_enabled(void);
 void cheats_engine_set_enabled(int on);
+
+/* True when a foreground big-app (game) is currently running. The web
+   UI uses this to gate the master cheat-engine toggle: there's no
+   reason to enable cheats from the home screen, and doing so leaves a
+   "ready to write memory" state hanging around for whichever process
+   happens to launch next. */
+int  cheats_game_running(void);

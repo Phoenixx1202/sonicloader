@@ -12,13 +12,16 @@
 #include "releases.h"
 #include "fan.h"
 #include "jb.h"
+#include "dumper.h"
 #include "kmonitor.h"
 #include "mdns.h"
 #include "homebrew.h"
+#include "notif_inbox.h"
 #include "smp_meta.h"
 #include "sys.h"
 #include "websrv.h"
 #include "y2jb_updater.h"
+#include "payload_registry.h"
 
 
 int
@@ -56,9 +59,24 @@ main(int argc, char** argv) {
      kstuff has unlocked). */
   jb_escalate_pid(getpid());
 
+  /* Inhibit config_save() for the duration of boot. Several subsystem
+     setters below (sys_garlic_worker_set_enabled, sys_lapyjb_set_enabled,
+     etc.) call config_save() after each toggle so live UI changes
+     persist — but at boot they're called with compile-time defaults,
+     and if they were allowed to write the user's persisted file
+     would be overwritten with those defaults BEFORE config_load() runs.
+     config_load() drops the inhibit on its way out, so user-driven
+     toggles after boot persist normally. */
+  config_save_set_inhibit(1);
+
   /* Create /data/sonic-loader/cheats early so the bundled ftpsrv can drop
      uploaded cheat .json files straight into it. */
   cheats_init();
+  /* Reload the persisted notifications inbox so crash alerts the user
+     hasn't dismissed yet survive a reboot. Must run BEFORE any
+     subsystem can call notif_inbox_push() (currently kmonitor's klog
+     scanner is the only producer, and it doesn't start until later). */
+  notif_inbox_init();
   /* Load persisted per-title activity stats from
      /data/sonic-loader/activity.json so the spotlight overlay has
      numbers from the moment the launcher first paints. */
@@ -85,24 +103,16 @@ main(int argc, char** argv) {
      a previous "off" preference if one was persisted. */
   sys_garlic_seed_config();
   sys_garlic_worker_set_enabled(1);
+  /* SaveMgr is now mandatory — the launcher exposes it via the top-bar
+     tab and there is no longer a way to turn it off from the UI. */
+  sys_garlic_savemgr_set_enabled(1);
 
-  /* etaHEN-compatible jailbreak IPC. Apps that ship the universalps5
-     PRX (jb.zip) connect to 127.0.0.1:9028 (or drop a JSON file at
-     /download0/etahen_jailbreak) at launch and expect a daemon to
-     escalate their PID. Implementing this server here makes those
-     apps work directly on Sonic Loader without etaHEN running. */
-  jb_start();
-
-#ifndef SONIC_NO_ETAHEN
-  /* Spawn the bundled etaHEN daemon on by default in the etaHEN
-     variant. Both build variants (etaHEN + no-etaHEN) can now JB
-     apps like Itemzflow and xplorer through the IPC daemon above —
-     but with etaHEN's toolbox running, those apps escalate
-     noticeably faster because the toolbox keeps PID-elevation
-     primitives hot. config_load() below restores a persisted
-     "off" preference if the user had explicitly disabled it. */
-  sys_etahen_set_enabled(1);
-#endif
+  /* Lapy JB Daemon — replaces the etaHEN-compatible jb.c IPC daemon
+     and the bundled etaHEN payload. Standalone PID escalator that
+     does not require etaHEN or PHU. Spawned by default at boot;
+     config_load() below restores a persisted "off" preference if the
+     user had explicitly disabled it. */
+  sys_lapyjb_set_enabled(1);
 
   /* Replay /data/sonic-loader/config.ini through every subsystem so
      last-session settings (kstuff auto-toggle, cheat engine on/off,
@@ -119,6 +129,13 @@ main(int argc, char** argv) {
      (it's a per-release GitHub download we can't sanely patch). */
   smp_meta_init();
 
+  /* Seed the App Dumper config on every writable USB so users can
+     edit skip_existing=1 (and the rest of the dumper knobs) BEFORE
+     they ever run the dumper. Idempotent — files that already exist
+     are left alone, so the dumper's own one-shot writer becomes a
+     no-op. Cheap probe (one open/write/unlink per /mnt/usbN slot). */
+  dumper_seed_configs();
+
   /* The wake-watcher / smp-bootkick daemon was removed entirely in
      1.0.50 — even the trimmed one-shot variant from 1.0.49 was
      hitting the console hard enough to be unreliable in practice.
@@ -134,6 +151,11 @@ main(int argc, char** argv) {
      foreground "Update all" button in Settings → Y2JB autoloader sync
      is still available for on-demand refreshes. */
   y2jb_startup_init();
+
+  /* Auto-refresh any managed third-party payload (itsPLK pldmgr, etc.)
+     whose entry has auto_update_on_boot=true and is already installed
+     somewhere on disk. Best-effort, never blocks main. */
+  payload_registry_boot_update();
 
   /* Auto-install the Sonic Loader home-screen tile PKG every boot.
      Background thread: sleeps 30 s for the network to settle, fetches

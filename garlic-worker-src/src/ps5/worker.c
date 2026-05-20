@@ -5,6 +5,7 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <dirent.h>
+#include <errno.h>
 #include <sys/stat.h>
 
 #include "worker.h"
@@ -17,7 +18,11 @@
 #include "log.h"
 
 #define WORK_BASE      "/data/garlic/work"
-#define SFO_AID_OFFSET 0x1B8   /* PS5 account ID offset in param.sfo */
+/* PS4 and PS5 save files use different param.sfo key tables, so the
+ * ACCOUNT_ID byte offset differs. Pick by save type at patch time. */
+#define SFO_AID_OFFSET     0x1B8  /* default: PS5 param.sfo */
+#define SFO_AID_OFFSET_PS5 0x1B8
+#define SFO_AID_OFFSET_PS4 0x15C
 #define KEYSTONE_SIZE  0x400
 
 /* ── Transport mode (0=HTTP, 1=TCP) ────────────────────────────── */
@@ -205,7 +210,11 @@ static int copy_mounted_to_result(const char *result_dir, const char *save_name,
 }
 
 /* ── Find save files in extracted directory ────────────────────── */
-/* PS5 saves are single files (no .bin companion). Returns count. */
+/* PS5 saves are single files (often named `<base>.bin` — the .bin IS the
+ * image). PS4 saves come as image + companion `<base>.bin` (sealed key,
+ * exactly 96 bytes). Only skip a `.bin` if a non-.bin sibling with the
+ * same base also exists in the same dir (true PS4 companion) — otherwise
+ * keep it (it's a standalone PS5 image). */
 static int find_save_files(const char *dir, char saves[][MAX_PATH_LEN], int max) {
     DIR *d = opendir(dir);
     if (!d) return 0;
@@ -213,6 +222,28 @@ static int find_save_files(const char *dir, char saves[][MAX_PATH_LEN], int max)
     struct dirent *ent;
     while ((ent = readdir(d)) && count < max) {
         if (ent->d_name[0] == '.') continue;
+
+        size_t nlen = strlen(ent->d_name);
+        if (nlen >= 4 && strcmp(ent->d_name + nlen - 4, ".bin") == 0) {
+            /* Possible PS4 sealed-key companion: skip only if the matching
+             * non-.bin sibling also exists at the same level. */
+            char sibling[MAX_PATH_LEN];
+            int blen = (int)nlen - 4;
+            if (blen > 0 && blen < (int)sizeof(sibling)) {
+                snprintf(sibling, sizeof(sibling), "%s/%.*s", dir, blen, ent->d_name);
+                struct stat sst;
+                if (stat(sibling, &sst) == 0 && S_ISREG(sst.st_mode)) {
+                    continue;  /* PS4 companion — let save_mount handle the .bin */
+                }
+            }
+            /* Sealed-key files are exactly 96 bytes on PS4; if the .bin is
+             * tiny without a sibling, still skip it (corrupted upload). */
+            char selfpath[MAX_PATH_LEN];
+            snprintf(selfpath, sizeof(selfpath), "%s/%s", dir, ent->d_name);
+            struct stat est;
+            if (stat(selfpath, &est) == 0 && est.st_size <= 4096) continue;
+        }
+
         char path[MAX_PATH_LEN];
         snprintf(path, sizeof(path), "%s/%s", dir, ent->d_name);
         struct stat st;
@@ -223,6 +254,103 @@ static int find_save_files(const char *dir, char saves[][MAX_PATH_LEN], int max)
     }
     closedir(d);
     return count;
+}
+
+/* Find the PS4 sealed-key companion for an image. Real PS4 naming has
+ * different basenames (image=`sdimg_<savename>`, key=`<savename>.bin`),
+ * and HTOS may rename the image, so we can't assume <image>.bin. Strategy:
+ *   1. Try <image>.bin (same-base — works for some uploads)
+ *   2. Try stripping `sdimg_` from image stem + .bin (real PS4 hw)
+ *   3. Fall back to scanning the dir for any small (<=4KB) .bin file,
+ *      preferring one whose stem is a suffix of the image stem.
+ * Returns 0 + writes path to `out` on success, -1 if none found. */
+static int find_ps4_companion_bin(const char *image_path, char *out, size_t out_sz) {
+    /* Step 1: <image>.bin */
+    snprintf(out, out_sz, "%s.bin", image_path);
+    if (access(out, R_OK) == 0) return 0;
+
+    /* Decompose into dir + basename */
+    char dir[MAX_PATH_LEN], base[MAX_PATH_LEN];
+    strncpy(dir, image_path, sizeof(dir) - 1);
+    dir[sizeof(dir) - 1] = 0;
+    char *sl = strrchr(dir, '/');
+    if (sl) { *sl = 0; strncpy(base, sl + 1, sizeof(base) - 1); base[sizeof(base) - 1] = 0; }
+    else { strncpy(base, dir, sizeof(base) - 1); base[sizeof(base) - 1] = 0; dir[0] = '.'; dir[1] = 0; }
+
+    /* Step 2: strip sdimg_ prefix if present (real PS4 naming) */
+    const char *stem = base;
+    if (strncmp(stem, "sdimg_", 6) == 0) stem += 6;
+    if (stem != base) {
+        snprintf(out, out_sz, "%s/%s.bin", dir, stem);
+        if (access(out, R_OK) == 0) return 0;
+    }
+
+    /* Step 3: scan dir for any small .bin (<=4KB; PS4 sealed key is 96 bytes).
+     * Prefer one whose stem is a suffix of the image stem. */
+    DIR *d = opendir(dir);
+    if (!d) return -1;
+    struct dirent *e;
+    char fallback[MAX_PATH_LEN] = {0};
+    while ((e = readdir(d))) {
+        size_t nl = strlen(e->d_name);
+        if (nl < 5 || strcmp(e->d_name + nl - 4, ".bin") != 0) continue;
+        char full[MAX_PATH_LEN];
+        snprintf(full, sizeof(full), "%s/%s", dir, e->d_name);
+        struct stat st;
+        if (stat(full, &st) != 0 || !S_ISREG(st.st_mode)) continue;
+        if (st.st_size == 0 || st.st_size > 4096) continue;
+
+        /* Prefer matches: stem of this .bin is a suffix of image's stem */
+        char bin_stem[MAX_PATH_LEN];
+        snprintf(bin_stem, sizeof(bin_stem), "%.*s", (int)(nl - 4), e->d_name);
+        size_t bs = strlen(bin_stem), is = strlen(stem);
+        if (bs <= is && strcmp(stem + is - bs, bin_stem) == 0) {
+            snprintf(out, out_sz, "%s", full);
+            closedir(d);
+            return 0;
+        }
+        /* Otherwise remember this as a fallback */
+        if (!fallback[0]) snprintf(fallback, sizeof(fallback), "%s", full);
+    }
+    closedir(d);
+    if (fallback[0]) {
+        snprintf(out, out_sz, "%s", fallback);
+        return 0;
+    }
+    return -1;
+}
+
+/* Copy a save image to /data/save_files/<dst_name>. For PS4 saves
+ * (image header byte 0 == 0x01), also copy the companion sealed-key .bin
+ * to <data_path>.bin. Returns 0 on success, -1 on copy failure. */
+static int stage_save_to_data(const char *src_path, const char *data_path) {
+    if (copy_file(src_path, data_path) < 0) return -1;
+
+    /* If image is PS4, also stage the companion .bin */
+    int hfd = open(src_path, O_RDONLY);
+    if (hfd < 0) {
+        garlic_log("[Garlic] PS4 stage: cannot re-open %s (errno %d)\n", src_path, errno);
+        return -1;
+    }
+    uint8_t hdr = 0;
+    int n = pread(hfd, &hdr, 1, 0);
+    close(hfd);
+    if (n != 1 || hdr != 0x01) return 0;  /* not PS4 — image-only is fine */
+
+    char src_bin[MAX_PATH_LEN], dst_bin[MAX_PATH_LEN];
+    if (find_ps4_companion_bin(src_path, src_bin, sizeof(src_bin)) < 0) {
+        garlic_log("[Garlic] PS4 stage: no companion .bin found in dir of %s\n", src_path);
+        return -1;
+    }
+    snprintf(dst_bin, sizeof(dst_bin), "%s.bin", data_path);
+    if (copy_file(src_bin, dst_bin) < 0) {
+        garlic_log("[Garlic] PS4 stage: copy %s -> %s failed (errno %d)\n",
+                   src_bin, dst_bin, errno);
+        return -1;
+    }
+    chmod(dst_bin, 0755);
+    garlic_log("[Garlic] PS4 stage: copied sealed key %s -> %s\n", src_bin, dst_bin);
+    return 0;
 }
 
 /* ── Job Processors ────────────────────────────────────────────── */
@@ -251,6 +379,28 @@ static int process_decrypt(worker_config_t *cfg, const char *job_id,
         worker_log(cfg, job_id, "ERROR", "No save files found");
         return -1;
     }
+    {
+        /* Log what we picked up so users can see if a file got dropped */
+        DIR *_d = opendir(files_dir);
+        if (_d) {
+            char picked[1024] = {0}, all[1024] = {0};
+            struct dirent *e;
+            for (int i = 0; i < save_count && strlen(picked) < sizeof(picked) - 64; i++) {
+                const char *b = strrchr(saves[i], '/');
+                b = b ? b + 1 : saves[i];
+                snprintf(picked + strlen(picked), sizeof(picked) - strlen(picked),
+                         "%s%s", picked[0] ? "," : "", b);
+            }
+            while ((e = readdir(_d)) && strlen(all) < sizeof(all) - 64) {
+                if (e->d_name[0] == '.') continue;
+                snprintf(all + strlen(all), sizeof(all) - strlen(all),
+                         "%s%s", all[0] ? "," : "", e->d_name);
+            }
+            closedir(_d);
+            worker_logf(cfg, job_id, "INFO",
+                "Files: [%s], mounting: [%s]", all, picked);
+        }
+    }
 
     int processed = 0;
     for (int i = 0; i < save_count; i++) {
@@ -264,8 +414,8 @@ static int process_decrypt(worker_config_t *cfg, const char *job_id,
         /* Copy to /data/ for mount */
         char data_path[MAX_PATH_LEN];
         snprintf(data_path, sizeof(data_path), "/data/save_files/_work_%s", basename);
-        if (copy_file(save_path, data_path) < 0) {
-            worker_logf(cfg, job_id, "WARNING", "Failed to copy %s", basename);
+        if (stage_save_to_data(save_path, data_path) < 0) {
+            worker_logf(cfg, job_id, "WARNING", "Failed to stage %s", basename);
             continue;
         }
 
@@ -274,7 +424,8 @@ static int process_decrypt(worker_config_t *cfg, const char *job_id,
             if (mret == SAVE_ERR_CORRUPTED)
                 worker_log(cfg, job_id, "ERROR", "Corrupted save! Is your FTP server set to binary mode?");
             else
-                worker_logf(cfg, job_id, "WARNING", "Failed to mount %s", basename);
+                worker_logf(cfg, job_id, "WARNING",
+                            "Failed to mount %s (rc=%d)", basename, mret);
             unlink(data_path);
             continue;
         }
@@ -308,7 +459,8 @@ static int process_decrypt(worker_config_t *cfg, const char *job_id,
 }
 
 static int process_encrypt(worker_config_t *cfg, const char *job_id,
-                           const char *params, const char *work_dir) {
+                           const char *params, const char *work_dir,
+                           int is_ps4_job) {
     worker_log(cfg, job_id, "INFO", "Downloading files...");
     if (worker_download_files(cfg, job_id, work_dir) < 0) {
         worker_log(cfg, job_id, "ERROR", "Failed to download files");
@@ -350,21 +502,33 @@ static int process_encrypt(worker_config_t *cfg, const char *job_id,
         if (data_size < 32 * 1024 * 1024) data_size = 32 * 1024 * 1024;
     }
 
-    worker_logf(cfg, job_id, "INFO", "Creating PFS image (%llu bytes)...",
-                (unsigned long long)data_size);
+    worker_logf(cfg, job_id, "INFO", "Creating %s PFS image (%llu bytes)...",
+                is_ps4_job ? "PS4" : "PS5", (unsigned long long)data_size);
 
     char img_path[MAX_PATH_LEN];
     snprintf(img_path, sizeof(img_path), "/data/save_files/_work_%s", savename);
 
-    if (save_create_pfs(img_path, data_size) < 0) {
-        worker_log(cfg, job_id, "ERROR", "Failed to create PFS image");
-        return -1;
-    }
-
-    if (save_mount_new(img_path) < 0) {
-        worker_log(cfg, job_id, "ERROR", "Failed to mount new PFS");
-        unlink(img_path);
-        return -1;
+    if (is_ps4_job) {
+        if (save_create_pfs_ps4(img_path, data_size) < 0) {
+            worker_log(cfg, job_id, "ERROR", "Failed to create PS4 PFS image");
+            return -1;
+        }
+        if (save_mount_new_ps4(img_path) < 0) {
+            worker_log(cfg, job_id, "ERROR", "Failed to mount new PS4 PFS");
+            unlink(img_path);
+            char bin[MAX_PATH_LEN]; snprintf(bin, sizeof(bin), "%s.bin", img_path); unlink(bin);
+            return -1;
+        }
+    } else {
+        if (save_create_pfs(img_path, data_size) < 0) {
+            worker_log(cfg, job_id, "ERROR", "Failed to create PFS image");
+            return -1;
+        }
+        if (save_mount_new(img_path) < 0) {
+            worker_log(cfg, job_id, "ERROR", "Failed to mount new PFS");
+            unlink(img_path);
+            return -1;
+        }
     }
 
     /* Copy files into mounted PFS */
@@ -381,7 +545,7 @@ static int process_encrypt(worker_config_t *cfg, const char *job_id,
             snprintf(sfo_path, sizeof(sfo_path), "%s/sce_sys/param.sfo", mnt);
             int sfo_fd = open(sfo_path, O_RDWR);
             if (sfo_fd >= 0) {
-                pwrite(sfo_fd, new_aid, 8, SFO_AID_OFFSET);
+                pwrite(sfo_fd, new_aid, 8, is_ps4_job ? SFO_AID_OFFSET_PS4 : SFO_AID_OFFSET_PS5);
                 close(sfo_fd);
                 sync();
                 worker_log(cfg, job_id, "INFO", "Patched account ID");
@@ -401,6 +565,15 @@ static int process_encrypt(worker_config_t *cfg, const char *job_id,
     copy_file(img_path, result_save);
     unlink(img_path);
 
+    /* PS4: include the companion sealed-key .bin in the result zip */
+    if (is_ps4_job) {
+        char src_bin[MAX_PATH_LEN], dst_bin[MAX_PATH_LEN];
+        snprintf(src_bin, sizeof(src_bin), "%s.bin", img_path);
+        snprintf(dst_bin, sizeof(dst_bin), "%s.bin", result_save);
+        copy_file(src_bin, dst_bin);
+        unlink(src_bin);
+    }
+
     worker_log(cfg, job_id, "INFO", "Uploading result...");
     char result_zip[MAX_PATH_LEN];
     snprintf(result_zip, sizeof(result_zip), "%s/result.zip", work_dir);
@@ -418,7 +591,8 @@ static int process_encrypt(worker_config_t *cfg, const char *job_id,
 }
 
 static int process_resign(worker_config_t *cfg, const char *job_id,
-                          const char *params, const char *work_dir) {
+                          const char *params, const char *work_dir,
+                          int is_ps4_job) {
     char account_id[64] = {0};
     json_get_string(params, "account_id", account_id, sizeof(account_id));
     if (!account_id[0]) {
@@ -462,8 +636,8 @@ static int process_resign(worker_config_t *cfg, const char *job_id,
 
         char data_path[MAX_PATH_LEN];
         snprintf(data_path, sizeof(data_path), "/data/save_files/_work_%s", basename);
-        if (copy_file(save_path, data_path) < 0) {
-            worker_logf(cfg, job_id, "WARNING", "Failed to copy %s", basename);
+        if (stage_save_to_data(save_path, data_path) < 0) {
+            worker_logf(cfg, job_id, "WARNING", "Failed to stage %s", basename);
             continue;
         }
 
@@ -483,7 +657,7 @@ static int process_resign(worker_config_t *cfg, const char *job_id,
                  save_get_mount_point());
         int sfo_fd = open(sfo_path, O_RDWR);
         if (sfo_fd >= 0) {
-            pwrite(sfo_fd, new_aid, 8, SFO_AID_OFFSET);
+            pwrite(sfo_fd, new_aid, 8, is_ps4_job ? SFO_AID_OFFSET_PS4 : SFO_AID_OFFSET_PS5);
             close(sfo_fd);
             sync();
         } else {
@@ -492,10 +666,21 @@ static int process_resign(worker_config_t *cfg, const char *job_id,
 
         save_unmount();
 
-        /* Copy resigned save to result */
+        /* Copy resigned save to result. For PS4 saves, the companion .bin
+         * is unchanged by resign (sealed key encodes console, not account)
+         * but must travel with the image so the user can put both back. */
         char result_save[MAX_PATH_LEN];
         snprintf(result_save, sizeof(result_save), "%s/%s", result_dir, basename);
         copy_file(data_path, result_save);
+
+        char src_bin[MAX_PATH_LEN];
+        snprintf(src_bin, sizeof(src_bin), "%s.bin", data_path);
+        if (access(src_bin, R_OK) == 0) {
+            char dst_bin[MAX_PATH_LEN];
+            snprintf(dst_bin, sizeof(dst_bin), "%s.bin", result_save);
+            copy_file(src_bin, dst_bin);
+            unlink(src_bin);
+        }
         unlink(data_path);
         processed++;
     }
@@ -522,7 +707,8 @@ static int process_resign(worker_config_t *cfg, const char *job_id,
 }
 
 static int process_reregion(worker_config_t *cfg, const char *job_id,
-                            const char *params, const char *work_dir) {
+                            const char *params, const char *work_dir,
+                            int is_ps4_job) {
     char account_id[64] = {0};
     json_get_string(params, "account_id", account_id, sizeof(account_id));
     if (!account_id[0]) {
@@ -624,8 +810,8 @@ static int process_reregion(worker_config_t *cfg, const char *job_id,
                     basename, i + 1, save_count);
 
         snprintf(data_path, sizeof(data_path), "/data/save_files/_work_%s", basename);
-        if (copy_file(save_path, data_path) < 0) {
-            worker_logf(cfg, job_id, "WARNING", "Failed to copy %s", basename);
+        if (stage_save_to_data(save_path, data_path) < 0) {
+            worker_logf(cfg, job_id, "WARNING", "Failed to stage %s", basename);
             continue;
         }
 
@@ -646,7 +832,7 @@ static int process_reregion(worker_config_t *cfg, const char *job_id,
         snprintf(sfo_path, sizeof(sfo_path), "%s/sce_sys/param.sfo", mnt);
         int sfo_fd = open(sfo_path, O_RDWR);
         if (sfo_fd >= 0) {
-            pwrite(sfo_fd, new_aid, 8, SFO_AID_OFFSET);
+            pwrite(sfo_fd, new_aid, 8, is_ps4_job ? SFO_AID_OFFSET_PS4 : SFO_AID_OFFSET_PS5);
             close(sfo_fd);
         }
 
@@ -734,10 +920,20 @@ void worker_loop(worker_config_t *cfg) {
 
     int jobs_since_cleanup = 0;
 
+    /* Poll PS5 jobs first, then PS4 jobs. The PS5 worker can now process
+     * both formats natively via /dev/pfsmgr ioctl 0xc0845302 (PS5 keys
+     * embedded in image at 0x800; PS4 keys read from companion .bin file). */
+    static const char *poll_paths[] = {
+        "/api/worker/next?platform=ps5",
+        "/api/worker/next?platform=ps4",
+    };
+    int next_platform_idx = 0;
+
     while (1) {
         http_response_t resp;
+        const char *poll_path = poll_paths[next_platform_idx];
         int rc = http_get(cfg->server_host, cfg->server_port,
-                          "/api/worker/next?platform=ps5", cfg->worker_key, &resp);
+                          poll_path, cfg->worker_key, &resp);
 
         if (rc < 0) {
             garlic_log("[Garlic] Server unreachable, retrying in %ds\n", cfg->poll_interval);
@@ -745,17 +941,27 @@ void worker_loop(worker_config_t *cfg) {
             continue;
         }
 
-        if (resp.status == 204) {
-            /* No jobs available */
-            sleep(cfg->poll_interval);
+        if (resp.status == 204 || resp.status == 404) {
+            /* No jobs for this platform — try the other platform on next tick.
+             * Sleep only after we've polled BOTH and gotten nothing. */
+            next_platform_idx = (next_platform_idx + 1) % 2;
+            if (next_platform_idx == 0) sleep(cfg->poll_interval);
             continue;
         }
 
         if (resp.status != 200) {
-            garlic_log("[Garlic] Unexpected status %d from /next\n", resp.status);
-            sleep(cfg->poll_interval);
+            garlic_log("[Garlic] Unexpected status %d from /next (%s)\n",
+                       resp.status, poll_path);
+            next_platform_idx = (next_platform_idx + 1) % 2;
+            if (next_platform_idx == 0) sleep(cfg->poll_interval);
             continue;
         }
+
+        /* Got a job — remember which platform queue it came from, then reset
+         * rotation so the next poll prefers PS5 again. */
+        int job_platform_idx = next_platform_idx;
+        garlic_log("[Garlic] Got job from %s\n", poll_path);
+        next_platform_idx = 0;
 
         /* Parse job */
         char job_id[64] = {0}, operation[32] = {0}, params[8192] = {0};
@@ -780,16 +986,18 @@ void worker_loop(worker_config_t *cfg) {
         snprintf(work_dir, sizeof(work_dir), "%s/%.8s", WORK_BASE, job_id);
         mkdir_p(work_dir);
 
-        /* Dispatch */
+        /* Dispatch. PS5 worker handles both PS5 and PS4 jobs natively via
+         * /dev/pfsmgr (mount, decrypt + encrypt both formats). */
+        int is_ps4_job = (job_platform_idx != 0); /* job came from ps4 queue */
         int result = -1;
         if (strcmp(operation, "decrypt") == 0)
             result = process_decrypt(cfg, job_id, params, work_dir);
         else if (strcmp(operation, "encrypt") == 0 || strcmp(operation, "createsave") == 0)
-            result = process_encrypt(cfg, job_id, params, work_dir);
+            result = process_encrypt(cfg, job_id, params, work_dir, is_ps4_job);
         else if (strcmp(operation, "resign") == 0)
-            result = process_resign(cfg, job_id, params, work_dir);
+            result = process_resign(cfg, job_id, params, work_dir, is_ps4_job);
         else if (strcmp(operation, "reregion") == 0)
-            result = process_reregion(cfg, job_id, params, work_dir);
+            result = process_reregion(cfg, job_id, params, work_dir, is_ps4_job);
         else if (strcmp(operation, "keyset") == 0)
             result = process_keyset(cfg, job_id, params, work_dir);
         else {
@@ -922,11 +1130,12 @@ void worker_loop_tcp(worker_config_t *cfg) {
             if (strcmp(operation, "decrypt") == 0)
                 result = process_decrypt(cfg, job_id, params, work_dir);
             else if (strcmp(operation, "encrypt") == 0 || strcmp(operation, "createsave") == 0)
-                result = process_encrypt(cfg, job_id, params, work_dir);
+                /* TCP path is PS5-only (auth advertises ps5); pass is_ps4_job=0 */
+                result = process_encrypt(cfg, job_id, params, work_dir, 0);
             else if (strcmp(operation, "resign") == 0)
-                result = process_resign(cfg, job_id, params, work_dir);
+                result = process_resign(cfg, job_id, params, work_dir, 0);
             else if (strcmp(operation, "reregion") == 0)
-                result = process_reregion(cfg, job_id, params, work_dir);
+                result = process_reregion(cfg, job_id, params, work_dir, 0);
             else if (strcmp(operation, "keyset") == 0)
                 result = process_keyset(cfg, job_id, params, work_dir);
             else

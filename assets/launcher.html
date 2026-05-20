@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Sonic Loader</title>
 <style>
-  :root {
+  :root, html[data-theme="dark"] {
     --bg-0: #050913;
     --bg-1: #0d1424;
     --bg-2: #131b30;
@@ -15,8 +15,65 @@
     --accent-glow: rgba(76, 201, 255, 0.45);
     --danger: #ff5675;
     --ok: #6bff9c;
+    --warn: #ffb84a;
+    --warn-glow: rgba(255, 184, 74, 0.45);
     --card-shadow: 0 18px 48px rgba(0, 0, 0, 0.55),
                    0 0 0 1px rgba(255, 255, 255, 0.04) inset;
+    --header-bg-a: rgba(8, 12, 24, 0.85);
+    --header-bg-b: rgba(8, 12, 24, 0.55);
+    --bg-glow-a: #1a2440;
+    --bg-glow-b: #163046;
+  }
+  html[data-theme="oled"] {
+    --bg-0: #000000;
+    --bg-1: #050505;
+    --bg-2: #0a0a0a;
+    --fg-0: #f5f5f5;
+    --fg-1: #888888;
+    --accent: #00d4ff;
+    --accent-glow: rgba(0, 212, 255, 0.4);
+    --danger: #ff3b58;
+    --ok: #4cff8a;
+    --card-shadow: 0 0 0 1px rgba(255, 255, 255, 0.05) inset;
+    --header-bg-a: rgba(0, 0, 0, 0.92);
+    --header-bg-b: rgba(0, 0, 0, 0.7);
+    --bg-glow-a: transparent;
+    --bg-glow-b: transparent;
+  }
+  html[data-theme="light"] {
+    --bg-0: #f3f6fc;
+    --bg-1: #ffffff;
+    --bg-2: #e9eef8;
+    --fg-0: #101724;
+    --fg-1: #50607c;
+    --accent: #0066d6;
+    --accent-glow: rgba(0, 102, 214, 0.32);
+    --danger: #d12d49;
+    --ok: #1d9d4f;
+    --warn: #b56600;
+    --warn-glow: rgba(181, 102, 0, 0.32);
+    --card-shadow: 0 8px 28px rgba(15, 30, 60, 0.10),
+                   0 0 0 1px rgba(15, 30, 60, 0.07) inset;
+    --header-bg-a: rgba(255, 255, 255, 0.94);
+    --header-bg-b: rgba(255, 255, 255, 0.7);
+    --bg-glow-a: #d6e3f6;
+    --bg-glow-b: #e6efff;
+  }
+  html[data-theme="contrast"] {
+    --bg-0: #000000;
+    --bg-1: #000000;
+    --bg-2: #111111;
+    --fg-0: #ffffff;
+    --fg-1: #ffffff;
+    --accent: #ffff00;
+    --accent-glow: rgba(255, 255, 0, 0.65);
+    --danger: #ff0040;
+    --ok: #00ff5e;
+    --card-shadow: 0 0 0 2px #ffffff inset;
+    --header-bg-a: #000000;
+    --header-bg-b: #000000;
+    --bg-glow-a: transparent;
+    --bg-glow-b: transparent;
   }
 
   * { box-sizing: border-box; }
@@ -25,8 +82,8 @@
     margin: 0;
     padding: 0;
     height: 100%;
-    background: radial-gradient(1100px 700px at 75% -10%, #1a2440 0%, transparent 60%),
-                radial-gradient(900px 600px at -10% 110%, #163046 0%, transparent 55%),
+    background: radial-gradient(1100px 700px at 75% -10%, var(--bg-glow-a) 0%, transparent 60%),
+                radial-gradient(900px 600px at -10% 110%, var(--bg-glow-b) 0%, transparent 55%),
                 var(--bg-0);
     color: var(--fg-0);
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "SF Pro Text",
@@ -42,18 +99,47 @@
     backdrop-filter: blur(18px) saturate(140%);
     -webkit-backdrop-filter: blur(18px) saturate(140%);
     background: linear-gradient(180deg,
-                rgba(8, 12, 24, 0.85) 0%,
-                rgba(8, 12, 24, 0.55) 100%);
+                var(--header-bg-a) 0%,
+                var(--header-bg-b) 100%);
     border-bottom: 1px solid rgba(255, 255, 255, 0.06);
   }
 
   .header-inner {
     max-width: 1400px;
     margin: 0 auto;
-    padding: 18px 28px;
+    padding: 18px 28px 12px;
     display: flex;
     align-items: center;
     gap: 18px;
+    flex-wrap: wrap;
+    row-gap: 10px;
+  }
+  /* Secondary nav row — page links live here so the action buttons
+     and search box in the top row don't get crushed. Wraps to two
+     lines on narrow displays. */
+  .header-nav {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 0 28px 14px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex-wrap: wrap;
+    font-size: 13px;
+  }
+  .header-nav a {
+    color: var(--fg-1);
+    text-decoration: none;
+    padding: 7px 13px;
+    border-radius: 10px;
+    border: 1px solid transparent;
+    transition: all 0.15s;
+    white-space: nowrap;
+  }
+  .header-nav a:hover {
+    color: var(--fg-0);
+    background: rgba(255, 255, 255, 0.05);
+    border-color: rgba(255, 255, 255, 0.08);
   }
 
   .brand {
@@ -78,6 +164,7 @@
 
   .search {
     flex: 1;
+    min-width: 240px;
     max-width: 520px;
     position: relative;
   }
@@ -640,6 +727,1282 @@
   }
   .btn-primary:hover { filter: brightness(1.1); }
   .btn-primary:active { filter: brightness(0.95); }
+
+  /* Appearance picker — small chips, current theme is highlighted via
+     [data-theme-active] which is set by JS on whichever button matches
+     the html[data-theme=…] attribute. */
+  .theme-btn {
+    background: var(--bg-2);
+    color: var(--fg-0);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 8px;
+    padding: 8px 14px;
+    font-size: 13px;
+    cursor: pointer;
+    transition: filter 0.15s, border-color 0.15s;
+  }
+  .theme-btn:hover { filter: brightness(1.12); }
+  .theme-btn[data-theme-active] {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 1px var(--accent), 0 0 14px var(--accent-glow);
+  }
+
+  /* Notification bell + drawer (bell sits in the header right cluster) */
+  .notif-bell {
+    position: relative;
+    background: transparent;
+    color: var(--fg-0);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 8px;
+    width: 38px; height: 38px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center; justify-content: center;
+    font-size: 16px;
+  }
+  .notif-bell:hover { background: var(--bg-2); }
+  .notif-bell .badge {
+    position: absolute;
+    top: -4px; right: -4px;
+    min-width: 18px; height: 18px;
+    border-radius: 9px;
+    background: var(--danger);
+    color: #fff;
+    font-size: 10px; font-weight: 700;
+    display: none;
+    align-items: center; justify-content: center;
+    padding: 0 5px;
+  }
+  .notif-bell .badge[data-unread] { display: flex; }
+
+  .notif-drawer {
+    position: fixed;
+    top: 64px; right: 16px;
+    width: 360px; max-height: 70vh;
+    background: var(--bg-1);
+    color: var(--fg-0);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 12px;
+    box-shadow: var(--card-shadow);
+    z-index: 100;
+    display: none;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .notif-drawer[data-open] { display: flex; }
+  .notif-drawer .head {
+    padding: 12px 14px;
+    display: flex; align-items: center; justify-content: space-between;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    font-size: 13px; font-weight: 600;
+  }
+  .notif-drawer .head button {
+    background: transparent; color: var(--fg-1);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 6px;
+    padding: 3px 8px; font-size: 11px; cursor: pointer;
+  }
+  .notif-drawer .body { overflow-y: auto; }
+  .notif-drawer .item {
+    padding: 10px 14px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+    font-size: 12px;
+  }
+  .notif-drawer .item .ts {
+    color: var(--fg-1); font-size: 10px; margin-bottom: 2px;
+  }
+  .notif-drawer .empty {
+    padding: 20px; color: var(--fg-1); text-align: center; font-size: 12px;
+  }
+
+  /* Klog viewer — terminal-y monospace area, fixed-height with auto-scroll */
+  .klog-viewer {
+    background: var(--bg-0);
+    color: var(--fg-0);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 8px;
+    height: 50vh;
+    overflow-y: auto;
+    font-family: "SF Mono", "Menlo", "Consolas", monospace;
+    font-size: 11px;
+    line-height: 1.4;
+    padding: 10px;
+    white-space: pre-wrap;
+    word-break: break-all;
+  }
+
+  /* Stats dashboard cards */
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 10px;
+  }
+  .stats-card {
+    background: var(--bg-2);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 10px;
+    padding: 12px;
+  }
+  .stats-card .label { font-size: 11px; color: var(--fg-1); }
+  .stats-card .value { font-size: 22px; font-weight: 700; margin-top: 4px; }
+  .stats-card .sub   { font-size: 11px; color: var(--fg-1); margin-top: 2px; }
+
+  /* Cheats redesign — VoidShell-style game list with per-cheat toggles */
+  .cheats-search {
+    width: 100%;
+    background: var(--bg-2);
+    color: var(--fg-0);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 8px;
+    padding: 9px 12px;
+    font-size: 13px;
+    margin-bottom: 10px;
+  }
+  .cheats-game {
+    background: var(--bg-2);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 10px;
+    padding: 10px 12px;
+    margin-bottom: 8px;
+  }
+  .cheats-game .head {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 10px;
+  }
+  .cheats-game .head .tid {
+    font-family: monospace; font-size: 11px; color: var(--fg-1);
+  }
+  .cheats-game .list {
+    margin-top: 8px;
+    display: none;
+  }
+  .cheats-game[data-expanded] .list { display: block; }
+  .cheats-game .item {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 5px 0; font-size: 12px;
+    border-top: 1px solid rgba(255, 255, 255, 0.04);
+  }
+  .toggle {
+    position: relative; width: 36px; height: 20px;
+    background: var(--bg-0); border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 10px; cursor: pointer;
+  }
+  .toggle::after {
+    content: ""; position: absolute;
+    top: 2px; left: 2px; width: 14px; height: 14px;
+    border-radius: 7px;
+    background: var(--fg-1);
+    transition: left 0.15s, background 0.15s;
+  }
+  .toggle[data-on] { border-color: var(--accent); }
+  .toggle[data-on]::after {
+    left: 18px; background: var(--accent);
+  }
+
+  /* Thermal curve editor — simple SVG-based 2-axis points */
+  .curve-editor {
+    background: var(--bg-2);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 8px;
+    padding: 12px;
+  }
+  .curve-editor svg { width: 100%; height: 220px; cursor: crosshair; }
+  .curve-editor .pt {
+    fill: var(--accent);
+    stroke: var(--bg-0);
+    stroke-width: 2;
+  }
+  .curve-editor .axis-line { stroke: rgba(255,255,255,0.1); stroke-width: 1; }
+  .curve-editor .axis-label { fill: var(--fg-1); font-size: 10px; }
+
+  /* ─── Sidebar layout for Settings — VoidShell-style category nav ───
+     The settings-panel becomes a flex container with a sticky 232 px
+     left rail and a scrollable right pane. Section visibility is
+     driven by data-cat / data-priv-show on each <details> — JS at
+     the bottom of the page tags every top-level section with a
+     category and toggles data-priv-show on the matching ones when
+     the user clicks a sidebar button. */
+
+  /* Apply the flex layout ONLY when the panel is open. Previously the
+     selector was just `#settings-panel.settings-panel` (no .open),
+     which has higher specificity (1,2,0) than the toggle rule
+     `.settings-panel.open` (0,2,0). That meant `display: flex` won
+     unconditionally and removing `.open` from the class list had no
+     visible effect — the panel stayed visible forever. Adding .open
+     here keeps the flex layout when shown and lets the base
+     `.settings-panel { display: none }` hide it when closed. */
+  #settings-panel.settings-panel.open {
+    display: flex;
+    align-items: flex-start;
+    gap: 18px;
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+
+  #settings-sidebar {
+    flex: 0 0 232px;
+    position: sticky;
+    top: 80px;
+    align-self: flex-start;
+    max-height: calc(100vh - 100px);
+    overflow-y: auto;
+    background: var(--bg-1);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 12px;
+    padding: 12px 10px;
+    box-shadow: var(--card-shadow);
+    font-size: 13px;
+  }
+  #settings-sidebar .head {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 4px 6px 8px 6px;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+    margin-bottom: 8px;
+  }
+  #settings-sidebar .head .title {
+    font-size: 14px; font-weight: 600;
+  }
+  #settings-sidebar .search {
+    width: 100%;
+    background: var(--bg-0);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 8px;
+    color: var(--fg-0);
+    padding: 7px 10px;
+    margin-bottom: 8px;
+    font-size: 12px;
+  }
+  #settings-sidebar button.cat {
+    display: block; width: 100%;
+    text-align: left;
+    background: transparent;
+    color: var(--fg-0);
+    border: 1px solid transparent;
+    border-radius: 8px;
+    padding: 8px 10px;
+    margin: 2px 0;
+    font-size: 13px;
+    cursor: pointer;
+    transition: background 0.12s, border-color 0.12s;
+  }
+  #settings-sidebar button.cat:hover { background: var(--bg-2); }
+  #settings-sidebar button.cat[data-active] {
+    background: var(--bg-2);
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+  #settings-sidebar button.cat .icon {
+    display: inline-block;
+    width: 22px;
+    text-align: center;
+    margin-right: 4px;
+  }
+  #settings-sidebar button.cat .count {
+    float: right;
+    font-size: 10px;
+    color: var(--fg-1);
+    background: var(--bg-0);
+    border-radius: 10px;
+    padding: 1px 6px;
+    margin-top: 2px;
+  }
+
+  #settings-content { flex: 1 1 auto; min-width: 0; }
+
+  /* JS sets data-priv-show on matching sections; tagged sections
+     without the show flag are hidden. The section search adds
+     data-search-hide to non-matching sections (overrides everything). */
+  #settings-content details.settings-section[data-cat] { display: none; }
+  #settings-content details.settings-section[data-cat][data-priv-show] { display: block; }
+  #settings-content details.settings-section[data-search-hide] { display: none !important; }
+
+  @media (max-width: 720px) {
+    #settings-panel.settings-panel { flex-direction: column; gap: 10px; }
+    #settings-sidebar {
+      position: static;
+      flex: 1 1 auto;
+      max-height: none;
+      width: 100%;
+    }
+  }
+
+  /* ─── Disclaimer button + modal ────────────────────────────────────
+     Amber-tinted header button that opens a centered modal explaining
+     the legal/intended-use scope of the tool. Visually distinct from
+     the cyan ⚙ Settings button so it reads as informational. */
+  .disclaimer-btn {
+    color: var(--warn) !important;
+    border: 1px solid rgba(255, 184, 74, 0.25) !important;
+    background: rgba(255, 184, 74, 0.05) !important;
+    font-weight: 600;
+    cursor: pointer;
+    font: inherit;
+    padding: 8px 12px;
+    border-radius: 10px;
+    transition: all 0.15s;
+  }
+  .disclaimer-btn:hover {
+    background: rgba(255, 184, 74, 0.10) !important;
+    border-color: rgba(255, 184, 74, 0.45) !important;
+  }
+
+  .modal-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.65);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    z-index: 100;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 32px;
+  }
+  .modal-backdrop[data-open] { display: flex; }
+  .modal-card {
+    background: linear-gradient(180deg, var(--bg-1), var(--bg-0));
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 18px;
+    max-width: 720px;
+    width: 100%;
+    max-height: 88vh;
+    overflow-y: auto;
+    box-shadow:
+      0 18px 60px rgba(0, 0, 0, 0.6),
+      0 0 0 1px rgba(255, 184, 74, 0.18) inset;
+  }
+  .modal-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 22px 28px 14px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  }
+  .modal-head h2 {
+    margin: 0;
+    font-size: 20px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    color: var(--fg-0);
+  }
+  .modal-head h2 .modal-icon {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: var(--warn);
+    color: #1a1100;
+    font-weight: 800;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 0 14px var(--warn-glow);
+    font-size: 16px;
+  }
+  .modal-close {
+    background: transparent;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: var(--fg-1);
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 18px;
+    line-height: 1;
+  }
+  .modal-close:hover {
+    color: var(--fg-0);
+    border-color: rgba(255, 255, 255, 0.25);
+  }
+  .modal-body {
+    padding: 22px 28px 8px;
+    color: var(--fg-1);
+    font-size: 14px;
+    line-height: 1.65;
+  }
+  .modal-body p { margin: 0 0 14px; }
+  .modal-body strong { color: var(--fg-0); }
+  .modal-body ul { margin: 8px 0 14px; padding-left: 22px; }
+  .modal-body li { margin-bottom: 6px; }
+  .modal-body .lead { font-size: 15px; color: var(--fg-0); }
+  .modal-body .footnote {
+    margin-top: 18px;
+    padding: 14px 16px;
+    background: rgba(255, 184, 74, 0.06);
+    border: 1px solid rgba(255, 184, 74, 0.18);
+    border-radius: 10px;
+    color: var(--fg-0);
+    font-size: 13px;
+  }
+  .modal-foot {
+    padding: 14px 28px 22px;
+    display: flex;
+    justify-content: flex-end;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+  }
+  .modal-foot .got-it {
+    background: var(--accent);
+    color: #001019;
+    border: none;
+    padding: 10px 22px;
+    border-radius: 10px;
+    font-weight: 600;
+    cursor: pointer;
+    font-size: 14px;
+    box-shadow: 0 0 18px var(--accent-glow);
+  }
+  .modal-foot .got-it:hover { filter: brightness(1.1); }
+
+  /* ─── hotshotzproto: Activity panel + HLTB UI ─────────────────────
+     Imported from hotshotz79's fork (22 commits ahead of upstream as of
+     2026-05-09). Powers the Activity tab that pulls Recently Played +
+     per-user iconinfo from /api/activitydb. Year-in-Review and Progress
+     Tracker markup is laid out but not yet driven by data — those land
+     in a follow-up if the prototype proves useful. */
+    /* Activity panel */
+    .activity-panel {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 34px 28px;
+      margin-bottom: 22px;
+      display: none;
+    }
+
+    .activity-panel.open {
+      display: block;
+    }
+
+    .activity-panel h2 {
+      margin: 0 0 4px;
+      font-size: 16px;
+      font-weight: 600;
+    }
+
+    .activity-panel .hint {
+      color: var(--fg-1);
+      font-size: 12px;
+      margin: 0 0 18px;
+    }
+
+    .activity-section-card {
+      background: linear-gradient(180deg, rgba(20, 28, 48, 0.85) 0%, rgba(13, 20, 36, 0.85) 100%);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      border-radius: 16px;
+      padding: 22px 24px;
+      margin-bottom: 18px;
+      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+    }
+
+    .activity-section-card h3 {
+      margin: 0 0 16px;
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--fg-0);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .activity-section-card h3 .section-emoji {
+      font-size: 18px;
+    }
+
+    /* Recently Played cards */
+    .recent-played-split {
+      display: grid;
+      grid-template-columns: 250px 1fr;
+      gap: 20px;
+    }
+
+    @media (max-width: 760px) {
+      .recent-played-split {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .user-select-panel {
+      background: rgba(0, 0, 0, 0.25);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      border-radius: 12px;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 15px;
+    }
+
+    .user-select-panel h3 {
+      margin: 0;
+      font-size: 16px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .user-dropdown {
+      width: 100%;
+      padding: 8px;
+      background: rgba(0, 0, 0, 0.5);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      color: var(--fg-0);
+      border-radius: 6px;
+      outline: none;
+    }
+
+    .user-dropdown:focus {
+      border-color: #4cc9ff;
+    }
+
+    .user-profile-display {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .user-profile-display img {
+      width: 80px;
+      height: 80px;
+      border-radius: 50%;
+      object-fit: cover;
+      border: 2px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .user-profile-display .user-name {
+      display: none;
+    }
+
+    .recent-cards {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 14px;
+    }
+
+    @media (max-width: 1100px) {
+      .recent-cards {
+        grid-template-columns: repeat(2, 1fr);
+      }
+    }
+
+    @media (max-width: 760px) {
+      .recent-cards {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .recent-card {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      padding: 14px;
+      background: rgba(0, 0, 0, 0.25);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      border-radius: 12px;
+      transition: border-color 0.15s, background 0.15s;
+      cursor: default;
+    }
+
+    .recent-card-top {
+      display: flex;
+      gap: 14px;
+    }
+
+    .recent-card:hover {
+      border-color: rgba(76, 201, 255, 0.3);
+      background: rgba(76, 201, 255, 0.04);
+    }
+
+    .recent-card-art {
+      width: 72px;
+      height: 72px;
+      border-radius: 10px;
+      overflow: hidden;
+      flex-shrink: 0;
+      background: linear-gradient(135deg, #233056, #14213a);
+    }
+
+    .recent-card-art img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+
+    .recent-card-art .fallback {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--accent);
+    }
+
+    .recent-card-info {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      min-width: 0;
+    }
+
+    .recent-card-info .rc-name {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--fg-0);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      margin-bottom: 4px;
+    }
+
+    .recent-card-info .rc-id {
+      font-size: 10px;
+      color: var(--fg-1);
+      font-family: ui-monospace, monospace;
+      margin-bottom: 6px;
+    }
+
+    .recent-card-info .rc-time {
+      font-size: 12px;
+      color: var(--accent);
+      font-weight: 600;
+    }
+
+    .recent-card-info .rc-date {
+      font-size: 11px;
+      color: var(--fg-1);
+      margin-top: 2px;
+    }
+
+    /* HLTB Styles */
+    .hltb-container {
+      background: rgba(0, 0, 0, 0.3);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      border-radius: 8px;
+      padding: 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .hltb-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .hltb-title {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--fg-0);
+    }
+
+    .hltb-badge {
+      font-size: 9px;
+      font-weight: 700;
+      padding: 3px 6px;
+      border-radius: 12px;
+      text-transform: uppercase;
+    }
+
+    .badge-track {
+      background: #82e29f;
+      color: #0a401c;
+    }
+
+    .badge-finished {
+      background: #4cc9ff;
+      color: #0b3447;
+    }
+
+    .badge-started {
+      background: #ffca28;
+      color: #473500;
+    }
+
+    .hltb-progress-bar {
+      width: 100%;
+      height: 14px;
+      background: rgba(0, 0, 0, 0.5);
+      border-radius: 7px;
+      overflow: hidden;
+      position: relative;
+      border: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    .hltb-progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #4cc9ff, #2980b9);
+      border-radius: 7px;
+      transition: width 0.3s;
+    }
+
+    .hltb-progress-text {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 9px;
+      font-weight: 700;
+      color: #fff;
+      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+    }
+
+    /* Year in Review */
+    .yir-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+    }
+
+    .yir-header select {
+      padding: 6px 12px;
+      border-radius: 8px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      background: rgba(0, 0, 0, 0.35);
+      color: var(--fg-0);
+      font-size: 13px;
+      cursor: pointer;
+    }
+
+    .yir-highlights {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      gap: 14px;
+      margin-bottom: 24px;
+    }
+
+    .yir-card {
+      padding: 16px;
+      background: rgba(0, 0, 0, 0.3);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      border-radius: 14px;
+      display: flex;
+      gap: 14px;
+      align-items: center;
+      transition: border-color 0.15s;
+    }
+
+    .yir-card:hover {
+      border-color: rgba(76, 201, 255, 0.25);
+    }
+
+    .yir-card-icon {
+      width: 56px;
+      height: 56px;
+      border-radius: 10px;
+      overflow: hidden;
+      flex-shrink: 0;
+      background: linear-gradient(135deg, #233056, #14213a);
+    }
+
+    .yir-card-icon img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+
+    .yir-card-icon .fallback {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--accent);
+    }
+
+    .yir-card-body {
+      min-width: 0;
+    }
+
+    .yir-card-label {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      color: var(--fg-1);
+      margin-bottom: 2px;
+    }
+
+    .yir-card-title {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--fg-0);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .yir-card-stat {
+      font-size: 11px;
+      color: var(--accent);
+      font-weight: 600;
+      margin-top: 2px;
+    }
+
+    .yir-card-desc {
+      font-size: 10px;
+      color: var(--fg-1);
+      opacity: 0.7;
+      margin-top: 3px;
+      font-style: italic;
+    }
+
+    .yir-charts {
+      display: grid;
+      grid-template-columns: 1.2fr 1fr;
+      gap: 18px;
+    }
+
+    @media (max-width: 760px) {
+      .yir-charts {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .yir-chart-box {
+      background: rgba(0, 0, 0, 0.2);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      border-radius: 12px;
+      padding: 18px;
+    }
+
+    .yir-chart-box h4 {
+      margin: 0 0 14px;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--fg-1);
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+    }
+
+    .yir-monthly-bars {
+      display: flex;
+      align-items: flex-end;
+      gap: 4px;
+      height: 140px;
+      padding-bottom: 22px;
+      position: relative;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    }
+
+    .yir-month-col {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      height: 100%;
+      justify-content: flex-end;
+    }
+
+    .yir-month-val {
+      font-size: 9px;
+      color: var(--fg-1);
+      margin-bottom: 3px;
+    }
+
+    .yir-month-bar {
+      width: 100%;
+      max-width: 32px;
+      border-radius: 4px 4px 0 0;
+      background: linear-gradient(180deg, #6bff9c 0%, rgba(107, 255, 156, 0.3) 100%);
+      min-height: 2px;
+      transition: height 0.4s;
+    }
+
+    .yir-month-lbl {
+      position: absolute;
+      bottom: 4px;
+      font-size: 9px;
+      color: var(--fg-1);
+    }
+
+    /* Pie chart (CSS-only conic-gradient) */
+    .yir-pie-wrap {
+      display: flex;
+      gap: 18px;
+      align-items: center;
+    }
+
+    .yir-pie {
+      width: 130px;
+      height: 130px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    .yir-pie-legend {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+      font-size: 11px;
+      color: var(--fg-1);
+      min-width: 0;
+    }
+
+    .yir-pie-legend .leg-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .yir-pie-legend .leg-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    .yir-pie-legend .leg-name {
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .yir-pie-legend .leg-hrs {
+      color: var(--accent);
+      font-weight: 600;
+      margin-left: auto;
+      flex-shrink: 0;
+    }
+
+    /* Progress Tracker */
+    .pt-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 18px;
+      flex-wrap: wrap;
+    }
+
+    .pt-header select {
+      padding: 6px 12px;
+      border-radius: 8px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      background: rgba(0, 0, 0, 0.35);
+      color: var(--fg-0);
+      font-size: 13px;
+      cursor: pointer;
+      max-width: 280px;
+    }
+
+    .pt-progress-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 18px;
+    }
+
+    .pt-progress-bar {
+      flex: 1;
+      height: 10px;
+      border-radius: 6px;
+      background: rgba(255, 255, 255, 0.06);
+      overflow: hidden;
+    }
+
+    .pt-progress-fill {
+      height: 100%;
+      border-radius: 6px;
+      background: linear-gradient(90deg, var(--accent), #6bff9c);
+      transition: width 0.4s;
+    }
+
+    .pt-pct {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--accent);
+      min-width: 48px;
+      text-align: right;
+    }
+
+    .pt-chapters {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .pt-chapter {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 16px;
+      background: rgba(0, 0, 0, 0.2);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      border-radius: 10px;
+      cursor: pointer;
+      user-select: none;
+      transition: background 0.15s, border-color 0.15s;
+    }
+
+    .pt-chapter:hover {
+      background: rgba(255, 255, 255, 0.03);
+    }
+
+    .pt-chapter.done {
+      border-color: rgba(107, 255, 156, 0.3);
+      background: rgba(107, 255, 156, 0.04);
+    }
+
+    .pt-chapter .pt-toggle {
+      width: 22px;
+      height: 22px;
+      border-radius: 6px;
+      border: 2px solid rgba(255, 255, 255, 0.15);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      font-size: 14px;
+      transition: all 0.15s;
+    }
+
+    .pt-chapter.done .pt-toggle {
+      border-color: var(--ok);
+      background: rgba(107, 255, 156, 0.15);
+      color: var(--ok);
+    }
+
+    .pt-chapter .pt-name {
+      font-size: 13px;
+      color: var(--fg-0);
+      font-weight: 500;
+    }
+
+    .pt-chapter.done .pt-name {
+      text-decoration: line-through;
+      opacity: 0.6;
+    }
+
+    .activity-layout {
+      display: grid;
+      grid-template-columns: 280px 1fr;
+      gap: 18px;
+      min-height: 400px;
+    }
+
+    @media (max-width: 760px) {
+      .activity-layout {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .activity-list {
+      background: rgba(0, 0, 0, 0.25);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      border-radius: 12px;
+      overflow-y: auto;
+      max-height: 500px;
+    }
+
+    .activity-list-search {
+      position: sticky;
+      top: 0;
+      z-index: 1;
+      padding: 10px;
+      background: rgba(13, 20, 36, 0.95);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    }
+
+    .activity-list-search input {
+      width: 100%;
+      padding: 8px 12px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      background: rgba(255, 255, 255, 0.04);
+      color: var(--fg-0);
+      border-radius: 8px;
+      font-size: 13px;
+      outline: none;
+    }
+
+    .activity-list-search input:focus {
+      border-color: var(--accent);
+    }
+
+    .activity-game-item {
+      padding: 10px 14px;
+      cursor: pointer;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+      transition: background 0.12s;
+    }
+
+    .activity-game-item:hover {
+      background: rgba(255, 255, 255, 0.04);
+    }
+
+    .activity-game-item.active {
+      background: rgba(76, 201, 255, 0.1);
+      border-left: 3px solid var(--accent);
+    }
+
+    .activity-game-item .game-name {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--fg-0);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .activity-game-item .game-id {
+      font-size: 11px;
+      color: var(--fg-1);
+      font-family: ui-monospace, monospace;
+      margin-top: 2px;
+    }
+
+    .chart-period-btns {
+      display: flex;
+      gap: 6px;
+      margin-bottom: 12px;
+    }
+    .chart-period-btn {
+      padding: 4px 14px;
+      border-radius: 20px;
+      border: 1px solid rgba(255,255,255,0.12);
+      background: rgba(255,255,255,0.04);
+      color: var(--fg-1);
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .chart-period-btn:hover {
+      background: rgba(255,255,255,0.08);
+      color: var(--fg-0);
+    }
+    .chart-period-btn.active {
+      background: var(--accent);
+      color: #001019;
+      border-color: var(--accent);
+    }
+
+    .activity-details {
+      background: rgba(0, 0, 0, 0.2);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      border-radius: 12px;
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .activity-details-empty {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex: 1;
+      color: var(--fg-1);
+      font-size: 14px;
+      opacity: 0.6;
+    }
+
+    .activity-detail-title {
+      font-size: 20px;
+      font-weight: 700;
+      margin-bottom: 4px;
+    }
+
+    .activity-detail-id {
+      font-family: ui-monospace, monospace;
+      font-size: 12px;
+      color: var(--fg-1);
+      margin-bottom: 20px;
+    }
+
+    .activity-total-time {
+      font-size: 14px;
+      color: var(--fg-1);
+      margin-bottom: 24px;
+      padding: 12px 16px;
+      background: rgba(76, 201, 255, 0.06);
+      border: 1px solid rgba(76, 201, 255, 0.15);
+      border-radius: 10px;
+    }
+
+    .activity-total-time strong {
+      color: var(--accent);
+      font-size: 22px;
+      font-weight: 700;
+    }
+
+    .activity-chart {
+      flex: 1;
+    }
+
+    .activity-chart h3 {
+      margin: 0 0 14px;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--fg-1);
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+    }
+
+    .chart-bars {
+      display: flex;
+      align-items: flex-end;
+      gap: 8px;
+      height: 180px;
+      padding-bottom: 28px;
+      position: relative;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .chart-bar-col {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      height: 100%;
+      justify-content: flex-end;
+    }
+
+    .chart-bar-value {
+      font-size: 11px;
+      color: var(--fg-1);
+      margin-bottom: 4px;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .chart-bar {
+      width: 100%;
+      max-width: 48px;
+      border-radius: 6px 6px 0 0;
+      background: linear-gradient(180deg, var(--accent) 0%, rgba(76, 201, 255, 0.4) 100%);
+      transition: height 0.4s ease;
+      min-height: 2px;
+    }
+
+    .chart-bar-label {
+      position: absolute;
+      bottom: 6px;
+      font-size: 11px;
+      color: var(--fg-1);
+      font-variant-numeric: tabular-nums;
+    }
+
+    .settings-panel h2 {
+      margin: 0 0 4px;
+      font-size: 16px;
+      font-weight: 600;
+      letter-spacing: 0.2px;
+    }
+
+    .settings-panel .hint {
+      color: var(--fg-1);
+      font-size: 12px;
+      margin: 0 0 18px;
+    }
+
 </style>
 <link rel="stylesheet" href="/tempbar.css">
 <link rel="stylesheet" href="/verbadge.css">
@@ -660,16 +2023,193 @@
     </div>
     <div class="header-actions">
       <span id="count" class="badge">…</span>
-      <a href="/" title="Home">🏠 Home</a>
+      <button class="disclaimer-btn" id="disclaimer-open"
+              title="Read the disclaimer" type="button">⚠ Disclaimer</button>
+      <button class="settings-btn" id="activity-toggle"
+              title="Open the activity dashboard" type="button">📊 Activity</button>
+      <button class="notif-bell" id="notif-bell" title="Notifications" type="button">
+        🔔<span class="badge" id="notif-badge"></span>
+      </button>
       <button class="settings-btn" id="settings-toggle">⚙ Settings</button>
-      <a href="/homebrew">Homebrew</a>
-      <a href="/elfldr">ELF Loader</a>
-      <!-- File Manager hidden in 1.0.50 — known-unstable; route still
-           exists at /files for advanced users who type the URL. -->
-      <a href="/fs/">Files</a>
+    </div>
+    <div class="notif-drawer" id="notif-drawer" role="dialog" aria-label="Notifications">
+      <div class="head">
+        <span>Notifications</span>
+        <span style="display:flex; gap:6px;">
+          <button id="notif-mark-read" type="button">Mark all read</button>
+          <button id="notif-clear" type="button">Clear</button>
+        </span>
+      </div>
+      <div class="body" id="notif-list">
+        <div class="empty">No notifications yet.</div>
+      </div>
     </div>
   </div>
+  <nav class="header-nav" aria-label="Pages">
+    <a href="/" title="Home">🏠 Home</a>
+    <a id="homebrew-link" href="/homebrew">Homebrew</a>
+    <a href="/elfldr">ELF Loader</a>
+    <a href="/klog">Klog</a>
+    <a href="/stats">Stats</a>
+    <a href="/pkgzone" title="Browse and install PS5 homebrew from pkg-zone.com">🛒 PKG Zone</a>
+    <a href="/files" title="File Manager — upload, move, rename, delete files on the PS5">📁 File Manager</a>
+    <a id="savemgr-tab" href="#" target="_blank" rel="noopener"
+       title="Open Garlic SaveMgr (port 8082)">SaveMgr</a>
+    <script>
+      (function(){
+        var el = document.getElementById('savemgr-tab');
+        if (el) el.href = 'http://' + location.hostname + ':8082/';
+      })();
+    </script>
+  </nav>
 </header>
+
+
+<!-- ─── hotshotzproto: Activity panel ──────────────────────────
+     Open via the 📊 Activity button in the header. Backed by
+     /api/activitydb (Recently Played + per-user iconinfo);
+     Year in Review and Progress Tracker are markup-only stubs
+     for now. -->
+    <section id="activity-panel" class="activity-panel" aria-hidden="true">
+
+      <!-- HLTB toggle / proxy config moved into Settings → "⏱ How Long
+           To Beat (HLTB)" in 1.5.0. Search for hltb-mirror-input there. -->
+
+      <!-- Section 1: Recently Played -->
+      <div class="activity-section-card">
+        <div class="recent-played-split">
+          <div class="user-select-panel">
+            <h3><span class="section-emoji">👤</span> Select User</h3>
+            <div id="user-profile-display" class="user-profile-display" style="display:none;">
+            </div>
+            <select id="user-dropdown" class="user-dropdown">
+              <option value="">Loading users…</option>
+            </select>
+          </div>
+          <div>
+            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:15px;">
+              <h3 style="margin:0;"><span class="section-emoji">🕒</span> Recently Played</h3>
+              <button id="hltb-refresh-btn" onclick="hltbCacheFlush()"
+                style="display:none; background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.12); color:var(--fg-1); font-size:11px; padding:4px 10px; border-radius:6px; cursor:pointer; transition:all 0.2s;">↺
+                Refresh HLTB</button>
+            </div>
+            <div class="recent-cards" id="recent-played-cards">
+              <div class="loading" style="grid-column:1/-1; padding:20px;"><span class="spinner"></span> Loading…</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Section 2: Game Activity Detail -->
+      <div class="activity-section-card">
+        <h3><span class="section-emoji">📊</span> Game Activity</h3>
+        <div class="activity-layout">
+          <div class="activity-list" id="activity-game-list">
+            <div class="activity-list-search">
+              <input type="text" id="activity-search" placeholder="Search games…" autocomplete="off" />
+            </div>
+            <div id="activity-list-items">
+              <div class="loading" style="padding:30px;"><span class="spinner"></span> Loading…</div>
+            </div>
+          </div>
+          <div class="activity-details" id="activity-details">
+            <div class="activity-details-empty">
+              Select a game to view activity
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Section 3: Year in Review (hidden — hotshotz79 PR #6) -->
+      <div class="activity-section-card" style="display:none;">
+        <h3><span class="section-emoji">🌟</span> Year in Review</h3>
+        <div class="yir-header">
+          <label style="font-size:13px; color:var(--fg-1);">Select Year:</label>
+          <select id="yir-year-select"></select>
+        </div>
+        <div id="yir-highlights" class="yir-highlights"></div>
+        <div class="yir-charts">
+          <div class="yir-chart-box">
+            <h4>📅 Monthly Gaming Activity</h4>
+            <div id="yir-monthly" class="yir-monthly-bars"></div>
+          </div>
+          <div class="yir-chart-box">
+            <h4>🍰 Time Distribution</h4>
+            <div id="yir-pie" class="yir-pie-wrap"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Section 4: Progress Tracker (hidden — hotshotz79 PR #6) -->
+      <div class="activity-section-card" style="display:none;">
+        <h3><span class="section-emoji">🎯</span> Progress Tracker</h3>
+        <div class="pt-header">
+          <label style="font-size:13px; color:var(--fg-1);">Select Game:</label>
+          <select id="pt-game-select">
+            <option value="">Loading…</option>
+          </select>
+        </div>
+        <div class="pt-progress-row">
+          <div class="pt-progress-bar">
+            <div class="pt-progress-fill" id="pt-fill" style="width:0%"></div>
+          </div>
+          <div class="pt-pct" id="pt-pct">0%</div>
+        </div>
+        <div class="pt-chapters" id="pt-chapters"></div>
+      </div>
+    </section>
+
+<div class="modal-backdrop" id="disclaimer-modal"
+     role="dialog" aria-modal="true" aria-labelledby="disclaimer-title">
+  <div class="modal-card">
+    <div class="modal-head">
+      <h2 id="disclaimer-title"><span class="modal-icon">!</span> Disclaimer</h2>
+      <button class="modal-close" id="disclaimer-close"
+              type="button" aria-label="Close">✕</button>
+    </div>
+    <div class="modal-body">
+      <p class="lead">
+        Sonic Loader is a homebrew tool for the PS5 jailbreak community,
+        built and shared in good faith for legitimate, lawful use on
+        hardware and content you own.
+      </p>
+
+      <p><strong>Intended uses</strong></p>
+      <ul>
+        <li>Personal backups of games and saves you legally own</li>
+        <li>Homebrew development and testing on your own hardware</li>
+        <li>Security research on consoles you have authorization to study</li>
+        <li>Game preservation of titles you own that may otherwise become unobtainable</li>
+        <li>Accessibility, fan translations, save editors, and single-player cheats on legally-owned copies</li>
+      </ul>
+
+      <p><strong>Not intended for, and the author does not condone</strong></p>
+      <ul>
+        <li>Downloading, sharing, or playing pirated games (PKG and eboot dumps belonging to others)</li>
+        <li>Distributing copyrighted content you do not own the rights to</li>
+        <li>Bypassing DRM on content you have not lawfully purchased</li>
+        <li>Using cheats or save modifications in online / multiplayer modes</li>
+        <li>Any use that violates Sony's Terms of Service, your local copyright law, or the rights of game developers</li>
+      </ul>
+
+      <div class="footnote">
+        <strong>You are solely responsible</strong> for how you use this tool.
+        It is provided as-is, with no warranty, and the author disclaims
+        all liability for misuse. If you do not own a legal copy of the
+        game you intend to back up, dump, or modify — close this tab.
+      </div>
+
+      <p style="margin-top:14px; font-size:13px; opacity:0.85;">
+        The PS5 jailbreak scene exists because of decades of work by
+        independent researchers and developers. Please use these tools
+        ethically and respect that work.
+      </p>
+    </div>
+    <div class="modal-foot">
+      <button class="got-it" id="disclaimer-gotit" type="button">Got it</button>
+    </div>
+  </div>
+</div>
 
 <main>
   <div class="hero">
@@ -703,12 +2243,78 @@
   </section>
 
   <section id="settings-panel" class="settings-panel" aria-hidden="true">
+    <!-- Sidebar (left rail). Category list is a static template; the
+         JS init pass populates the per-button "count" badges by
+         walking the <details class="settings-section"> children of
+         #settings-content and binning each by its summary text. -->
+    <aside id="settings-sidebar" aria-label="Settings categories">
+      <div class="head">
+        <span class="title">Settings</span>
+        <span style="font-size:10px; color:var(--fg-1);" id="settings-cat-count"></span>
+      </div>
+      <input id="settings-search" class="search"
+             placeholder="Search settings…" autocomplete="off" />
+      <button class="cat" data-cat-target="appearance" type="button"><span class="icon">🎨</span>Appearance     <span class="count" data-cat-count="appearance"></span></button>
+      <button class="cat" data-cat-target="jb"         type="button"><span class="icon">⚙</span>JB &amp; kernel <span class="count" data-cat-count="jb"></span></button>
+      <button class="cat" data-cat-target="storage"    type="button"><span class="icon">📀</span>Games &amp; storage <span class="count" data-cat-count="storage"></span></button>
+      <button class="cat" data-cat-target="mods"       type="button"><span class="icon">🎮</span>Mods           <span class="count" data-cat-count="mods"></span></button>
+      <button class="cat" data-cat-target="profile"    type="button"><span class="icon">🪪</span>Profile        <span class="count" data-cat-count="profile"></span></button>
+      <button class="cat" data-cat-target="system"     type="button"><span class="icon">🛠</span>System         <span class="count" data-cat-count="system"></span></button>
+    </aside>
+
+    <div id="settings-content">
     <h2>Settings</h2>
     <p class="hint">
       Each section opens to its own controls. All changes are applied
       live and saved to <code>/data/sonic-loader/config.ini</code> so
       they survive a redeploy.
     </p>
+
+    <details class="settings-section" open>
+      <summary>
+        <span class="section-icon">🎨</span> Appearance
+      </summary>
+      <div class="row" style="gap:8px; flex-wrap:wrap; margin-top:6px;">
+        <button class="theme-btn" data-theme="dark"     type="button">Dark</button>
+        <button class="theme-btn" data-theme="oled"     type="button">OLED Black</button>
+        <button class="theme-btn" data-theme="light"    type="button">Light</button>
+        <button class="theme-btn" data-theme="contrast" type="button">High Contrast</button>
+      </div>
+      <div class="desc">Theme is saved per-browser via localStorage.</div>
+    </details>
+
+    <details class="settings-section" open>
+      <summary>
+        <span class="section-icon">⏱</span> How Long To Beat (HLTB)
+        <span class="section-sub">Vercel proxy + per-title progress bars in Activity</span>
+      </summary>
+      <div class="settings-section-body">
+        <div class="settings-grid">
+          <div class="setting-row">
+            <label for="hltb-toggle">HLTB Overlay in Activity</label>
+            <div class="switch-row">
+              <span id="hltb-state" class="switch-state off">Off</span>
+              <label class="switch">
+                <input type="checkbox" id="hltb-toggle" />
+                <span class="switch-slider"></span>
+              </label>
+            </div>
+            <div class="desc">When enabled, shows Main Story / Extra / Completionist times in the Game Activity detail panel and on Recently Played cards.</div>
+          </div>
+          <div class="setting-row" id="hltb-mirror-row" style="display:none;">
+            <label for="hltb-mirror-input">HLTB Proxy Domain</label>
+            <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+              <input type="text" id="hltb-mirror-input"
+                placeholder="https://hltb-proxy-sand.vercel.app/"
+                style="flex:1; min-width:240px; padding:8px 12px; border:1px solid rgba(255,255,255,0.1); background:rgba(0,0,0,0.3); color:var(--fg-0); border-radius:8px; font-size:13px; outline:none;" />
+              <button id="hltb-mirror-save"
+                style="padding:8px 16px; background:var(--accent); color:#001019; border:none; border-radius:8px; font-weight:600; font-size:13px; cursor:pointer;">Save</button>
+            </div>
+            <div class="desc">Enter the root URL of your deployed HLTB proxy (e.g. <code>https://hltb-proxy-sand.vercel.app/</code>). The <code>api/search</code> path is appended automatically. Deploy your own free proxy: upload the <code>hltb-proxy/</code> folder from the repo to a new GitHub repo, log into <a href="https://vercel.com" target="_blank" rel="noreferrer" style="color:var(--accent);">Vercel</a>, and create a project from it.</div>
+          </div>
+        </div>
+      </div>
+    </details>
 
     <details class="settings-section" open>
       <summary>
@@ -742,6 +2348,9 @@
         <label for="resume-input">End pause delay (seconds)</label>
         <input type="number" id="resume-input" min="0" max="3600" step="1" value="10" />
         <div class="desc">Wait this long after a game closes, then resume kstuff.</div>
+      </div>
+      <div class="setting-row">
+        <button class="btn-primary" id="settings-save">💾 Save delays</button>
       </div>
     </div>
 
@@ -865,9 +2474,6 @@
       <div class="desc" id="kstuff-info" style="margin-top:10px;"></div>
     </div>
 
-    <div class="settings-actions" style="margin-top:14px;">
-      <button class="btn-primary" id="settings-save">Save delays</button>
-    </div>
       </div>
     </details>
 
@@ -1125,7 +2731,7 @@
       USB or in <code>/data/</code>. This panel finds every such
       folder that already contains a Sonic Loader build and replaces
       the ELF with the latest release pulled from
-      <code>git.earthonion.com</code>. The variant in place
+      <code>git.etawen.dev</code>. The variant in place
       (<code>sonic-loader.elf</code> vs <code>sonic-loader-no-etahen.elf</code>)
       is preserved per folder; <code>autoload.txt</code> is left
       untouched. YT-sandbox paths are intentionally skipped.
@@ -1141,6 +2747,115 @@
         Loading…
       </div>
       <div id="y2jb-status" class="desc" style="margin-top:8px;"></div>
+    </div>
+      </div>
+    </details>
+
+    <details class="settings-section">
+      <summary>
+        <span class="section-icon">🧩</span> Managed Payloads
+        <span class="section-sub" id="payloads-sub">auto-update third-party ELFs loaded by y2jb-autoloader</span>
+      </summary>
+      <div class="settings-section-body">
+    <p class="hint">
+      Sonic Loader can keep selected third-party PS5 payloads up to date.
+      Each entry maps a GitHub repo to a stable filename that lives in
+      your <code>ps5_autoloader/</code> folders (and
+      <code>/data/pldmgr/payloads/</code> if pldmgr is installed). When
+      you turn <strong>Auto on boot</strong> on for a payload that's
+      already installed, Sonic Loader pulls the latest release on every
+      boot and atomically replaces the ELF in place. Default entry:
+      <a style="color:var(--accent);" href="https://github.com/itsPLK/ps5-payload-manager"
+         target="_blank">itsPLK/ps5-payload-manager</a>
+      (<code>pldmgr.elf</code>).
+    </p>
+    <div class="setting-row">
+      <label style="display:flex; align-items:center; gap:8px;">
+        <span>Detected payloads</span>
+        <button class="tb" id="payloads-refresh-latest"
+                style="margin-left:auto;">↺ Refresh latest tags</button>
+      </label>
+      <div id="payloads-list" class="desc" style="margin-top:8px;">
+        Loading…
+      </div>
+      <div id="payloads-status" class="desc" style="margin-top:8px;"></div>
+    </div>
+
+    <div class="setting-row" style="border-top:1px solid rgba(255,255,255,0.06); margin-top:14px; padding-top:14px;">
+      <label style="display:block; font-weight:600; margin-bottom:8px;">
+        ➕ Browse to add a payload
+      </label>
+      <p class="hint" style="margin:0 0 10px;">
+        Paste a GitHub repo URL (or <code>owner/repo</code>) and click
+        <strong>🔍 Lookup latest</strong>. The form auto-fills the display
+        name (from the repo), an asset glob (derived from the matched
+        filename), and the install filename (the stock release asset
+        name). Tweak any field if needed, then hit <strong>Add</strong>.
+      </p>
+      <div style="display:grid; grid-template-columns: 1fr 1fr; gap:8px 12px; align-items:center;">
+        <input id="payloads-add-repo"     type="text" placeholder="owner/repo or full GitHub URL" />
+        <input id="payloads-add-name"     type="text" placeholder="display name (auto-filled)" />
+        <input id="payloads-add-glob"     type="text" placeholder="asset glob (auto-filled)" />
+        <input id="payloads-add-filename" type="text" placeholder="install filename (auto-filled)" />
+      </div>
+      <div style="display:flex; align-items:center; gap:14px; margin-top:10px; flex-wrap:wrap;">
+        <label style="display:flex; align-items:center; gap:6px; font-size:12px;">
+          <input id="payloads-add-auto" type="checkbox" checked />
+          Auto-update on boot
+        </label>
+        <span style="flex:1;"></span>
+        <button class="tb" id="payloads-add-lookup" type="button">🔍 Lookup latest</button>
+        <button class="btn-primary" id="payloads-add-go" type="button">➕ Add to registry</button>
+      </div>
+      <div id="payloads-add-preview" class="desc" style="margin-top:10px;"></div>
+
+      <div style="border-top:1px solid rgba(255,255,255,0.06); margin-top:14px; padding-top:14px;">
+        <label style="display:block; font-weight:600; margin-bottom:6px;">
+          📁 …or upload a payload from this PC
+        </label>
+        <p class="hint" style="margin:0 0 10px;">
+          Pick an <code>.elf</code> on your PC. It'll be written to
+          <code>/data/ps5_autoloader/&lt;filename&gt;</code> (and
+          <code>/data/pldmgr/payloads/&lt;filename&gt;</code> if that
+          directory exists) and added to the registry as a local entry —
+          no GitHub source, so auto-update is off by default.
+        </p>
+        <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+          <input id="payloads-upload-file" type="file" accept=".elf"
+                 style="font-size:12px; max-width:100%;" />
+          <span style="flex:1;"></span>
+          <button class="btn-primary" id="payloads-upload-go" type="button" disabled>
+            ⬆ Upload &amp; register
+          </button>
+        </div>
+        <div id="payloads-upload-status" class="desc" style="margin-top:8px;"></div>
+      </div>
+    </div>
+      </div>
+    </details>
+
+    <details class="settings-section">
+      <summary>
+        <span class="section-icon">🛒</span> PKG Zone catalog
+        <span class="section-sub" id="pkgzone-cache-sub">cached weekly · manual refresh</span>
+      </summary>
+      <div class="settings-section-body">
+    <p class="hint">
+      The <a style="color:var(--accent);" href="/pkgzone">PKG Zone</a> tab
+      mirrors the pkg-zone.com catalog locally. The cache is refreshed
+      automatically once every <strong>7 days</strong> of PS5 system time
+      so we don't hammer LightningMods' server. Restarting Sonic Loader
+      does <em>not</em> force a refresh — only an explicit click below
+      (or the Refresh button on the PKG Zone page itself) does.
+    </p>
+    <div class="setting-row">
+      <label style="display:flex; align-items:center; gap:8px;">
+        <span>Cache status</span>
+        <button class="btn-primary" id="pkgzone-refresh-now" style="margin-left:auto;">⟳ Refresh now</button>
+      </label>
+      <div id="pkgzone-cache-status" class="desc" style="margin-top:8px;">
+        Loading…
+      </div>
     </div>
       </div>
     </details>
@@ -1177,31 +2892,59 @@
       </div>
     </details>
 
-    <details class="settings-section" id="etahen-section">
+    <details class="settings-section">
       <summary>
-        <span class="section-icon">🟢</span> etaHEN daemon
-        <span class="section-sub">full upstream daemon (optional, off by default)</span>
+        <span class="section-icon">🌐</span> nanoDNS
+        <span class="section-sub">local DNS forwarder for community domains</span>
       </summary>
       <div class="settings-section-body">
     <div class="setting-row">
-      <label for="etahen-toggle">etaHEN.elf (bundled)</label>
+      <label for="nanodns-toggle">nanoDNS daemon</label>
       <div class="switch-row">
-        <span id="etahen-state" class="switch-state off">Stopped</span>
+        <span id="nanodns-state" class="switch-state on">Running</span>
         <label class="switch">
-          <input type="checkbox" id="etahen-toggle" />
+          <input type="checkbox" id="nanodns-toggle" checked />
           <span class="switch-slider"></span>
         </label>
       </div>
       <div class="desc">
-        Spawns the upstream
-        <a style="color:var(--accent);" href="https://github.com/etaHEN/etaHEN" target="_blank">etaHEN/etaHEN</a>
-        daemon (release 2.5B baked into this payload). <strong>Off by
-        default</strong> — Sonic Loader's built-in JB IPC covers the
-        common cases. Turn this on if you want etaHEN's full feature
-        set (its own cheat manager UI bridge, shellui hooks, advanced
-        launchers, etc). Note: etaHEN binds port <strong>9028</strong>
-        and may conflict with Sonic Loader's internal JB IPC daemon
-        on the same port.
+        drakmor/nanoDNS — a tiny local DNS forwarder that listens on
+        <code>127.0.0.1:53</code> and resolves community domains
+        (<code>git.etawen.dev</code>, etc.) so the home-screen tile
+        auto-install + lazy-fetched payloads work without changing the
+        PS5's DNS settings. <strong>On by default.</strong> Turn off if
+        you run your own DNS forwarder upstream — Sonic Loader still
+        works, you just lose community-domain resolution.
+      </div>
+    </div>
+      </div>
+    </details>
+
+    <details class="settings-section">
+      <summary>
+        <span class="section-icon">🏠</span> Sonic Loader UI pkg auto-update
+        <span class="section-sub">refresh the home-screen tile every boot</span>
+      </summary>
+      <div class="settings-section-body">
+    <div class="setting-row">
+      <label for="tile-autoinstall-toggle">Auto-update Sonic Loader UI pkg</label>
+      <div class="switch-row">
+        <span id="tile-autoinstall-state" class="switch-state on">On</span>
+        <label class="switch">
+          <input type="checkbox" id="tile-autoinstall-toggle" checked />
+          <span class="switch-slider"></span>
+        </label>
+      </div>
+      <div class="desc">
+        Every boot, Sonic Loader fetches the latest
+        <code>sonic-loader-tile.pkg</code> from
+        <a href="https://git.etawen.dev/soniciso/sonicloader" target="_blank" style="color:var(--accent);">git.etawen.dev</a>
+        and reinstalls the PS5 home-screen tile so the launchable
+        icon stays in sync with the loader payload.
+        <strong>On by default.</strong> Turn off if you're pinned
+        to a specific tile build, or have installed a custom tile
+        pkg by hand and don't want it overwritten on the next boot.
+        The setting persists across reboots.
       </div>
     </div>
       </div>
@@ -1210,27 +2953,35 @@
     <details class="settings-section">
       <summary>
         <span class="section-icon">💾</span> App Dumper
-        <span class="section-sub">EchoStretch/ps5-app-dumper — dump mounted apps to USB</span>
+        <span class="section-sub">EchoStretch/ps5-app-dumper (1.08-sl1 fork) — per-USB config + skip-existing resume</span>
       </summary>
       <div class="settings-section-body">
+
     <div class="setting-row">
       <label>Run app dumper</label>
       <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
         <button class="btn-primary" id="dumper-run">▶ Spawn ps5-app-dumper.elf</button>
+        <button class="tb"          id="dumper-reseed" type="button">Re-seed configs</button>
         <span id="dumper-status" class="desc" style="margin-top:0;"></span>
       </div>
       <div class="desc">
         Spawns
         <a style="color:var(--accent);" href="https://github.com/EchoStretch/ps5-app-dumper" target="_blank">EchoStretch/ps5-app-dumper</a>
-        v1.09 (bundled). The dumper auto-detects the first writable
-        USB drive (`/mnt/usb0`–`usb7`), walks `/mnt/sandbox/pfsmnt`,
+        (Sonic Loader fork). The dumper picks the first writable
+        <code>/mnt/usbN</code>, walks <code>/mnt/sandbox/pfsmnt</code>,
         and copies every mounted app + patch tree to
-        <code>&lt;usb&gt;/PS5/&lt;TITLE_ID&gt;/</code>. The PS5 must
-        have a USB drive plugged in <strong>and</strong> the target
-        game already mounted (running or staged) for the dumper to
-        find it. Watch the system notifications for progress.
+        <code>&lt;usb&gt;/PS5/&lt;TITLE_ID&gt;/</code>. Watch the system
+        notifications for progress.
+        <strong>Re-seed configs</strong> drops a fresh <code>config.ini</code>
+        on any newly-plugged USB that doesn't have one yet (idempotent —
+        existing configs are left alone).
       </div>
     </div>
+
+    <div id="dumper-cfg-list" style="margin-top:14px;">
+      <div class="desc">Loading dumper configs…</div>
+    </div>
+
       </div>
     </details>
 
@@ -1267,6 +3018,46 @@
       </div>
     </div>
 
+      </div>
+    </details>
+
+    <details class="settings-section">
+      <summary>
+        <span class="section-icon">DL</span> exFAT and FFPKG Download
+        <span class="section-sub" id="game-download-sub">idle</span>
+      </summary>
+      <div class="settings-section-body">
+        <div class="setting-row">
+          <label for="game-download-url">Download URL</label>
+          <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+            <select id="game-download-type"
+                    style="background:rgba(0,0,0,0.35); color:var(--fg-0); border:1px solid rgba(255,255,255,0.08); border-radius:8px; padding:9px 10px;">
+              <option value="exfat">exFAT</option>
+              <option value="ffpkg">FFPKG</option>
+            </select>
+            <input type="text" id="game-download-url"
+                   placeholder="https://your-host/game.exfat or game.pkg"
+                   spellcheck="false" autocomplete="off"
+                   style="flex:1; min-width:280px; background:rgba(0,0,0,0.35); color:var(--fg-0); border:1px solid rgba(255,255,255,0.08); border-radius:8px; padding:9px 10px; font-family:ui-monospace,Menlo,Consolas,monospace; font-size:13px;" />
+            <input type="text" id="game-download-name"
+                   placeholder="file name (optional)"
+                   spellcheck="false" autocomplete="off"
+                   style="width:190px; background:rgba(0,0,0,0.35); color:var(--fg-0); border:1px solid rgba(255,255,255,0.08); border-radius:8px; padding:9px 10px;" />
+            <button class="btn-primary" id="game-download-start">Inject &amp; download</button>
+          </div>
+          <div id="game-download-progress"
+               style="display:none; height:8px; border-radius:4px; background:rgba(255,255,255,0.06); margin-top:10px; overflow:hidden;">
+            <div id="game-download-bar"
+                 style="width:0%; height:100%; background:linear-gradient(90deg, var(--accent), #6bff9c); transition:width .2s;"></div>
+          </div>
+          <div id="game-download-status" class="desc" style="margin-top:8px;"></div>
+          <div id="game-download-dest" class="desc" style="margin-top:4px; font-family:ui-monospace,Menlo,Consolas,monospace;"></div>
+          <div class="desc">
+            exFAT files are saved under <code>/data/etaHEN/games/</code>.
+            FFPKG files are staged under <code>/data/sonic-loader/pkgs/</code>
+            for the PKG installer.
+          </div>
+        </div>
       </div>
     </details>
 
@@ -1488,6 +3279,37 @@
       </div>
       <div class="desc">Range 30–90°C. The PS5 clamps to its supported range internally.</div>
     </div>
+
+    <!-- Thermal curve editor (prototype). Persists a list of
+         (tempC, thresholdC) points to /data/sonic-loader/fan_curve.json
+         via /api/fan/curve. The single-threshold apply path above is
+         unchanged; this is the "future-aware" shape the watcher could
+         consume in a later iteration. -->
+    <div class="setting-row" style="margin-top:14px;">
+      <label>Custom thermal curve</label>
+      <div class="curve-editor">
+        <svg id="curve-svg" viewBox="0 0 360 200" preserveAspectRatio="none">
+          <line class="axis-line" x1="36" y1="180" x2="354" y2="180" />
+          <line class="axis-line" x1="36" y1="20"  x2="36"  y2="180" />
+          <text class="axis-label" x="180" y="195" text-anchor="middle">Measured °C →</text>
+          <text class="axis-label" x="6"   y="105" transform="rotate(-90 6 105)" text-anchor="middle">Threshold °C ↑</text>
+          <polyline id="curve-line" fill="none" stroke="var(--accent)" stroke-width="2" />
+        </svg>
+        <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:8px;">
+          <button class="btn-primary" id="curve-save" type="button">Save curve</button>
+          <button class="tb"          id="curve-add"  type="button">+ Add point</button>
+          <button class="tb"          id="curve-reset" type="button">Reset</button>
+          <span id="curve-status" class="desc" style="margin-top:0;"></span>
+        </div>
+        <div id="curve-points-list" style="margin-top:8px; font-size:12px;"></div>
+      </div>
+      <div class="desc">
+        Drag points or edit values. Persistence-only in this build — the
+        single threshold above is what the firmware actually applies. A
+        future watcher could evaluate this curve to switch thresholds
+        based on measured temp.
+      </div>
+    </div>
       </div>
     </details>
 
@@ -1502,7 +3324,7 @@
       <code>.dds</code> files the PS5 uses for profile avatars
       (<code>avatar64.dds</code>, <code>128</code>, <code>260</code>,
       <code>440</code>). Same pipeline as
-      <a style="color:var(--accent);" href="https://git.earthonion.com/earthonion/np-fake-signin/src/branch/main/gen_dat/png_to_dds.py" target="_blank">earthonion/np-fake-signin/gen_dat/png_to_dds.py</a>.
+      <a style="color:var(--accent);" href="https://git.etawen.dev/earthonion/np-fake-signin/src/branch/main/gen_dat/png_to_dds.py" target="_blank">earthonion/np-fake-signin/gen_dat/png_to_dds.py</a>.
       Preview each size, switch between centre-crop and fit-with-padding,
       then Apply to copy the four files into your target avatar folder.
     </p>
@@ -1600,7 +3422,7 @@
       <div class="settings-section-body">
     <p class="hint">
       Spawns <code>np-fake-signin.elf</code>
-      (from <a style="color:var(--accent);" href="https://git.earthonion.com/earthonion/np-fake-signin" target="_blank">earthonion/np-fake-signin</a>)
+      (from <a style="color:var(--accent);" href="https://git.etawen.dev/earthonion/np-fake-signin" target="_blank">earthonion/np-fake-signin</a>)
       to inject a fake PSN sign-in for the current foreground user. The
       payload patches the system registry (<code>sceRegMgrSet*</code>)
       and per-user <code>auth.dat</code> / <code>config.dat</code> on
@@ -1615,7 +3437,7 @@
       ℹ️ The payload is no longer baked into the loader. The first
       time you click <em>Spawn np-fake-signin.elf</em>, Sonic Loader
       lazy-downloads it from
-      <code>git.earthonion.com</code> and caches it at
+      <code>git.etawen.dev</code> and caches it at
       <code>/data/sonic-loader/np-fake-signin.elf</code>. Subsequent
       clicks read from disk directly. Delete that file over FTP if
       you want to force a fresh fetch.
@@ -1653,7 +3475,7 @@
       <div class="settings-section-body">
     <p class="hint">
       Spawns <code>np-restore-account.elf</code>
-      (from <a style="color:var(--accent);" href="https://git.earthonion.com/earthonion/np-account-restore" target="_blank">earthonion/np-account-restore</a>)
+      (from <a style="color:var(--accent);" href="https://git.etawen.dev/earthonion/np-account-restore" target="_blank">earthonion/np-account-restore</a>)
       which reads <code>config.dat</code> for the foreground user and
       writes every field verbatim into the system registry. No patching —
       pure restore from existing dat files. <strong>Reboot is required</strong>.
@@ -1791,28 +3613,20 @@
       </div>
     </div>
 
-    <div class="setting-row" style="margin-top:14px;">
-      <label for="garlic-savemgr-toggle">Garlic SaveMgr (interactive web UI)</label>
-      <div class="switch-row">
-        <span id="garlic-savemgr-state" class="switch-state off">Stopped</span>
-        <label class="switch">
-          <input type="checkbox" id="garlic-savemgr-toggle" />
-          <span class="switch-slider"></span>
-        </label>
-      </div>
-      <div class="desc">
-        Spawns
-        <a style="color:var(--accent);" href="https://git.earthonion.com/earthonion/garlic-savemgr" target="_blank">garlic-savemgr</a>,
-        which serves its own browser-based save manager on
-        <strong>port 8082</strong>. Open
-        <a id="garlic-savemgr-link" style="color:var(--accent);" href="#" target="_blank">http://&lt;ps5-ip&gt;:8082/</a>
-        once it's running. Drag-and-drop save files in the browse tab
-        to add or replace entries. Off by default — turn it on only
-        while you're actively using it.
-      </div>
+    <!-- SaveMgr toggle removed in 1.0.78 — the daemon is now started
+         unconditionally at boot, surfaced via the top-bar SaveMgr tab,
+         and the on/off switch was hidden because turning it off is no
+         longer supported. The hidden inputs below are preserved so the
+         existing JS that wires up /api/garlic state polling continues
+         to work without code changes. -->
+    <div class="setting-row" style="display:none;" aria-hidden="true">
+      <span id="garlic-savemgr-state" class="switch-state on">Running</span>
+      <input type="checkbox" id="garlic-savemgr-toggle" checked disabled />
+      <a id="garlic-savemgr-link" href="#" target="_blank" rel="noopener">savemgr</a>
     </div>
       </div>
     </details>
+    </div><!-- /#settings-content -->
   </section>
 
   <div class="toolbar">
@@ -2138,9 +3952,11 @@
   const cheatsToggle  = document.getElementById('cheats-toggle');
   const cheatsState   = document.getElementById('cheats-state');
   const backporkToggle = document.getElementById('backpork-toggle');
-  const etahenToggle   = document.getElementById('etahen-toggle');
-  const etahenState    = document.getElementById('etahen-state');
   const backporkState  = document.getElementById('backpork-state');
+  const nanodnsToggle  = document.getElementById('nanodns-toggle');
+  const nanodnsState   = document.getElementById('nanodns-state');
+  const tileAutoToggle = document.getElementById('tile-autoinstall-toggle');
+  const tileAutoState  = document.getElementById('tile-autoinstall-state');
   const pauseInput    = document.getElementById('pause-input');
   const resumeInput   = document.getElementById('resume-input');
   const saveBtn       = document.getElementById('settings-save');
@@ -2170,28 +3986,36 @@
     if (typeof s.resumeAfterSeconds === 'number') {
       resumeInput.value = s.resumeAfterSeconds;
     }
-    // Cheat engine master switch
+    // Cheat engine master switch — gated on a foreground game running.
+    // Outside a game the toggle is locked off so users can't arm the
+    // engine from the home screen and have it bite the next title that
+    // happens to launch.
     cheatsToggle.checked = !!s.cheatsEnabled;
-    cheatsState.textContent = s.cheatsEnabled ? 'On' : 'Off';
-    cheatsState.className = 'switch-state ' + (s.cheatsEnabled ? 'on' : 'off');
+    if (s.gameRunning === false) {
+      cheatsToggle.disabled = true;
+      cheatsState.textContent = 'Locked — start a game first';
+      cheatsState.className = 'switch-state off';
+    } else {
+      cheatsToggle.disabled = false;
+      cheatsState.textContent = s.cheatsEnabled ? 'On' : 'Off';
+      cheatsState.className = 'switch-state ' + (s.cheatsEnabled ? 'on' : 'off');
+    }
 
     // BackPork running-state mirror
     backporkToggle.checked = !!s.backporkRunning;
     backporkState.textContent = s.backporkRunning ? 'Running' : 'Stopped';
     backporkState.className = 'switch-state ' + (s.backporkRunning ? 'on' : 'off');
 
-    if (etahenToggle) {
-      etahenToggle.checked = !!s.etahenRunning;
-      etahenState.textContent = s.etahenRunning ? 'Running' : 'Stopped';
-      etahenState.className   = 'switch-state ' + (s.etahenRunning ? 'on' : 'off');
+    if (nanodnsToggle) {
+      nanodnsToggle.checked = !!s.nanodnsRunning;
+      nanodnsState.textContent = s.nanodnsRunning ? 'Running' : 'Stopped';
+      nanodnsState.className   = 'switch-state ' + (s.nanodnsRunning ? 'on' : 'off');
     }
 
-    /* No-etaHEN build: hide the whole section so the slider doesn't
-       confuse the user. The "etahenSupported" flag in /api/state is
-       false when the C side was compiled with -DSONIC_NO_ETAHEN. */
-    const etahenSection = document.getElementById('etahen-section');
-    if (etahenSection) {
-      etahenSection.style.display = s.etahenSupported === false ? 'none' : '';
+    if (tileAutoToggle) {
+      tileAutoToggle.checked = !!s.tileAutoinstallEnabled;
+      tileAutoState.textContent = s.tileAutoinstallEnabled ? 'On' : 'Off';
+      tileAutoState.className   = 'switch-state ' + (s.tileAutoinstallEnabled ? 'on' : 'off');
     }
 
   }
@@ -2211,16 +4035,52 @@
     }
   }
 
-  settingsBtn.addEventListener('click', () => {
-    const open = settingsPanel.classList.toggle('open');
-    settingsPanel.setAttribute('aria-hidden', String(!open));
-    if (open) {
+  settingsBtn.addEventListener('click', (e) => {
+    /* Explicit add/remove instead of classList.toggle() — on PS5
+       WebKit toggle() occasionally returned the post-state but the
+       class write didn't visually take, so a second click looked
+       like a no-op. Reading the class first and branching makes the
+       state transition observable and idempotent. */
+    e.preventDefault();
+    e.stopPropagation();
+    const wasOpen = settingsPanel.classList.contains('open');
+    if (wasOpen) {
+      settingsPanel.classList.remove('open');
+      settingsPanel.setAttribute('aria-hidden', 'true');
+    } else {
+      settingsPanel.classList.add('open');
+      settingsPanel.setAttribute('aria-hidden', 'false');
       loadState();
       refreshCheats();
       loadHomebrewList();
       refreshPkgList();
     }
   });
+
+  /* If we arrived from a sub-page's ⚙ Settings link, the URL carries
+     ?settings=open (or #settings). Pop the sidebar open after the
+     page settles, then strip the marker so a refresh doesn't keep
+     re-opening it. */
+  (function autoOpenSettingsFromUrl() {
+    try {
+      const hashIsSettings = (location.hash || '').toLowerCase() === '#settings';
+      const params = new URLSearchParams(location.search);
+      const wantOpen = hashIsSettings || params.get('settings') === 'open';
+      if (!wantOpen) return;
+      setTimeout(() => {
+        if (!settingsPanel.classList.contains('open')) settingsBtn.click();
+        if (params.has('settings')) {
+          params.delete('settings');
+          const next = location.pathname +
+                       (params.toString() ? '?' + params.toString() : '') +
+                       (hashIsSettings ? '' : (location.hash || ''));
+          history.replaceState(null, '', next);
+        } else if (hashIsSettings) {
+          history.replaceState(null, '', location.pathname + location.search);
+        }
+      }, 150);
+    } catch (_) {}
+  })();
 
   kstuffToggle.addEventListener('change', async () => {
     const want = kstuffToggle.checked ? 1 : 0;
@@ -2260,13 +4120,31 @@
     }
   });
 
-  if (etahenToggle) {
-    etahenToggle.addEventListener('change', async () => {
-      const want = etahenToggle.checked ? 1 : 0;
+  if (nanodnsToggle) {
+    nanodnsToggle.addEventListener('change', async () => {
+      const want = nanodnsToggle.checked ? 1 : 0;
       try {
-        const s = await fetchState('etahen=' + want);
+        const s = await fetchState('nanodns=' + want);
         renderState(s);
-        showToast('etaHEN ' + (s.etahenRunning ? 'running' : 'stopped'), 'ok');
+        showToast('nanoDNS ' + (s.nanodnsRunning ? 'running' : 'stopped'),
+                  'ok');
+      } catch (e) {
+        showToast('Toggle failed: ' + e.message, 'err');
+        loadState();
+      }
+    });
+  }
+
+  if (tileAutoToggle) {
+    tileAutoToggle.addEventListener('change', async () => {
+      const want = tileAutoToggle.checked ? 1 : 0;
+      try {
+        const s = await fetchState('tileAutoinstall=' + want);
+        renderState(s);
+        showToast(
+          'Sonic Loader UI pkg auto-update ' +
+          (s.tileAutoinstallEnabled ? 'enabled' : 'disabled'),
+          'ok');
       } catch (e) {
         showToast('Toggle failed: ' + e.message, 'err');
         loadState();
@@ -2619,7 +4497,10 @@
 
   // ---------- App Dumper (EchoStretch/ps5-app-dumper) ----------
   const dumperRun    = document.getElementById('dumper-run');
+  const dumperReseed = document.getElementById('dumper-reseed');
   const dumperStatus = document.getElementById('dumper-status');
+  const dumperCfgList = document.getElementById('dumper-cfg-list');
+
   if (dumperRun) {
     dumperRun.addEventListener('click', async () => {
       if (!confirm('Spawn ps5-app-dumper.elf?\n\n' +
@@ -2644,6 +4525,156 @@
         dumperRun.disabled = false;
       }
     });
+  }
+
+  if (dumperReseed) {
+    dumperReseed.addEventListener('click', async () => {
+      dumperReseed.disabled = true;
+      dumperStatus.textContent = 'Re-seeding…';
+      try {
+        const r = await fetch('/api/dumper/seed-config');
+        const j = await r.json();
+        const msg = `created ${j.created}, existing ${j.existing}, ` +
+                    `skipped ${j.skipped}, errored ${j.errored}`;
+        dumperStatus.textContent = msg;
+        showToast('Dumper configs: ' + msg,
+                  j.errored ? 'err' : 'ok');
+        loadDumperConfigs();
+      } catch (e) {
+        dumperStatus.textContent = 'Error: ' + e.message;
+      } finally {
+        dumperReseed.disabled = false;
+      }
+    });
+  }
+
+  /* Per-USB config editor cards. Renders one card per writable mount
+     listing the 8 dumper config keys as proper form controls (toggles
+     + selects) instead of forcing the user to FTP-edit config.ini. */
+  function dumperConfigCard(m) {
+    const root = m.root;
+    const exists = m.exists;
+    const safe = (k, dv) => (exists ? Number(m[k] ?? dv) : dv);
+    const skip   = safe('skip_existing',       0);
+    const decr   = safe('enable_decrypter',    1);
+    const e2f    = safe('enable_elf2fself',    0);
+    const bp     = safe('enable_backport',     0);
+    const p4lvl  = safe('ps4_backport_level',  4);
+    const p5lvl  = safe('ps5_backport_level',  1);
+    const log    = safe('enable_logging',      1);
+    const split  = safe('split',               3);
+
+    const dataAttrs = `data-root="${root}"`;
+    return `
+      <div class="feature-card" ${dataAttrs} style="margin-top:10px;">
+        <div style="display:flex; align-items:center; justify-content:space-between; gap:10px;">
+          <div>
+            <div style="font-weight:600;">${root}</div>
+            <div class="desc" style="margin-top:0; font-family:monospace; font-size:11px;">
+              ${m.path}${exists ? '' : ' <em style="color:var(--fg-1);">(will be created on save)</em>'}
+            </div>
+          </div>
+          <button class="btn-primary dumper-cfg-save" type="button">💾 Save</button>
+        </div>
+
+        <div style="display:grid; grid-template-columns:repeat(2,1fr); gap:8px 14px; margin-top:12px;">
+          <label><input type="checkbox" data-k="skip_existing"    ${skip ? 'checked' : ''}> Skip-existing resume</label>
+          <label><input type="checkbox" data-k="enable_decrypter" ${decr ? 'checked' : ''}> Decrypt ELFs</label>
+          <label><input type="checkbox" data-k="enable_elf2fself" ${e2f  ? 'checked' : ''}> Generate FSELFs</label>
+          <label><input type="checkbox" data-k="enable_logging"   ${log  ? 'checked' : ''}> Write log.txt</label>
+          <label><input type="checkbox" data-k="enable_backport"  ${bp   ? 'checked' : ''}> Enable backport (advanced)</label>
+          <label style="display:flex; gap:6px; align-items:center;">
+            Split mode
+            <select data-k="split" style="flex:1;">
+              <option value="0" ${split===0?'selected':''}>0 — no split</option>
+              <option value="1" ${split===1?'selected':''}>1 — app only</option>
+              <option value="2" ${split===2?'selected':''}>2 — patch only</option>
+              <option value="3" ${split===3?'selected':''}>3 — both split</option>
+            </select>
+          </label>
+          <label style="display:flex; gap:6px; align-items:center;">
+            PS4 backport level
+            <input type="number" data-k="ps4_backport_level" min="1" max="6" value="${p4lvl}" style="width:70px;">
+          </label>
+          <label style="display:flex; gap:6px; align-items:center;">
+            PS5 backport level
+            <input type="number" data-k="ps5_backport_level" min="1" max="10" value="${p5lvl}" style="width:70px;">
+          </label>
+        </div>
+        <div class="desc dumper-cfg-status" style="margin-top:8px;"></div>
+      </div>
+    `;
+  }
+
+  async function loadDumperConfigs() {
+    if (!dumperCfgList) return;
+    try {
+      const r = await fetch('/api/dumper/configs');
+      const j = await r.json();
+      const mounts = j.mounts || [];
+      if (!mounts.length) {
+        dumperCfgList.innerHTML =
+          '<div class="desc">No writable USBs detected. Plug one in and click ' +
+          '<strong>Re-seed configs</strong> above to drop a fresh ' +
+          '<code>config.ini</code> on it.</div>';
+        return;
+      }
+      dumperCfgList.innerHTML = mounts.map(dumperConfigCard).join('');
+    } catch (e) {
+      dumperCfgList.innerHTML =
+        '<div class="desc" style="color:var(--danger);">Failed to load configs: ' + e.message + '</div>';
+    }
+  }
+
+  if (dumperCfgList) {
+    dumperCfgList.addEventListener('click', async (e) => {
+      const btn = e.target.closest('.dumper-cfg-save');
+      if (!btn) return;
+      const card   = btn.closest('[data-root]');
+      const root   = card.dataset.root;
+      const status = card.querySelector('.dumper-cfg-status');
+      const params = new URLSearchParams();
+      params.set('root', root);
+      card.querySelectorAll('[data-k]').forEach(el => {
+        const k = el.dataset.k;
+        const v = (el.type === 'checkbox') ? (el.checked ? 1 : 0)
+                                           : el.value;
+        params.set(k, v);
+      });
+      btn.disabled = true;
+      status.textContent = 'Saving…';
+      try {
+        const r = await fetch('/api/dumper/config/set?' + params.toString(),
+                              { method: 'POST' });
+        const j = await r.json();
+        if (j.ok) {
+          status.textContent = '✔ saved → ' + (j.saved?.path || root);
+          status.style.color = 'var(--ok)';
+        } else {
+          status.textContent = '✗ ' + (j.error || 'save failed');
+          status.style.color = 'var(--danger)';
+        }
+      } catch (err) {
+        status.textContent = '✗ ' + err.message;
+        status.style.color = 'var(--danger)';
+      } finally {
+        btn.disabled = false;
+      }
+    });
+
+    /* Lazy-load: fetch when the App Dumper section is first opened, not
+       on page load. Saves a request on the typical visit (most users
+       never open the dumper section). */
+    const dumperDetails = dumperCfgList.closest('details');
+    if (dumperDetails) {
+      let loaded = false;
+      dumperDetails.addEventListener('toggle', () => {
+        if (dumperDetails.open && !loaded) {
+          loaded = true;
+          loadDumperConfigs();
+        }
+      });
+    }
   }
 
   // ---------- Kstuff + ShadowMountPlus release pickers ----------
@@ -2923,6 +4954,10 @@
                           .classList.contains('open')) {
       settingsBtn.click();
     }
+    // Sidebar nav: switch to the category that contains the kstuff
+    // card, otherwise it stays display:none and scrollIntoView is a
+    // no-op visually.
+    if (window.SLSettings) window.SLSettings.activateCategoryFor(card);
     // Expand the kstuff <details> wrapper if it's currently collapsed.
     let p = card.parentElement;
     while (p && p.tagName !== 'DETAILS') p = p.parentElement;
@@ -3297,6 +5332,464 @@
     let loaded = false;
     details.addEventListener('toggle', () => {
       if (details.open && !loaded) { loaded = true; refreshY2jb(); }
+    });
+  })();
+
+  // ---------- Managed Payloads (generic registry) ----------
+  const payloadsList   = document.getElementById('payloads-list');
+  const payloadsRefBtn = document.getElementById('payloads-refresh-latest');
+  const payloadsStatus = document.getElementById('payloads-status');
+  const payloadsSub    = document.getElementById('payloads-sub');
+
+  function escAttr(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;').replace(/"/g, '&quot;')
+      .replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+
+  function renderPayloads(j) {
+    if (!payloadsList) return;
+    if (!j || !j.ok || !Array.isArray(j.items) || j.items.length === 0) {
+      payloadsList.innerHTML = '<em>No managed-payload entries.</em>';
+      if (payloadsSub) payloadsSub.textContent = '0 entries';
+      return;
+    }
+    if (payloadsSub) {
+      const installed = j.items.filter(it => it.installed).length;
+      payloadsSub.textContent =
+        j.items.length + ' entries · ' + installed + ' installed';
+    }
+    payloadsList.innerHTML = j.items.map(it => {
+      const have = it.installedVersion || (it.installed ? 'installed' : '—');
+      const latest = it.latestTag || '—';
+      const upToDate = it.installedVersion && it.latestTag &&
+                       it.installedVersion === it.latestTag;
+      const stateText = it.installed
+        ? (upToDate
+            ? '<span style="color:var(--ok);">up to date · ' + escAttr(have) + '</span>'
+            : '<span style="color:var(--accent);">installed ' + escAttr(have) +
+              ' · latest ' + escAttr(latest) + '</span>')
+        : '<span style="color:var(--fg-1);">not installed · latest ' + escAttr(latest) + '</span>';
+      const pathsHtml = (it.installedPaths || [])
+        .map(p => '<div style="font-family:ui-monospace,monospace; font-size:11px; opacity:0.8;">• ' +
+                  escAttr(p) + '</div>')
+        .join('') ||
+        '<div style="opacity:0.6; font-style:italic; font-size:12px;">' +
+          'No copies on disk yet — Update will drop one at <code>/data/ps5_autoloader/' +
+          escAttr(it.installFilename) + '</code>.' +
+        '</div>';
+      return (
+        '<div data-name="' + escAttr(it.name) + '" style="border:1px solid rgba(255,255,255,0.08); ' +
+          'border-radius:10px; padding:10px 12px; margin-bottom:8px;">' +
+          '<div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">' +
+            '<strong style="font-size:13px;">' + escAttr(it.name) + '</strong>' +
+            '<span style="font-size:11px; opacity:0.75;">' +
+              escAttr(it.repo) + '</span>' +
+            '<span style="margin-left:auto;">' + stateText + '</span>' +
+          '</div>' +
+          (it.description
+            ? '<div class="desc" style="margin-top:4px;">' + escAttr(it.description) + '</div>'
+            : '') +
+          '<div style="margin-top:6px;">' + pathsHtml + '</div>' +
+          '<div style="margin-top:8px; display:flex; align-items:center; gap:10px; flex-wrap:wrap;">' +
+            '<button class="btn-primary payloads-update-btn" type="button">' +
+              (it.installed ? '⬇ Update' : '⬇ Install') +
+            '</button>' +
+            '<label style="display:flex; align-items:center; gap:6px; font-size:12px;">' +
+              '<input type="checkbox" class="payloads-auto-toggle" ' +
+                (it.autoUpdateOnBoot ? 'checked' : '') + ' />' +
+              'Auto-update on boot' +
+            '</label>' +
+            '<span style="flex:1;"></span>' +
+            '<button class="tb payloads-remove-btn" type="button" ' +
+                    'style="color:var(--danger); border-color:rgba(255,86,117,0.35);" ' +
+                    'title="Remove this entry from the registry (does NOT delete the ELF on disk)">' +
+              '✕ Remove' +
+            '</button>' +
+          '</div>' +
+        '</div>'
+      );
+    }).join('');
+
+    Array.prototype.forEach.call(
+      payloadsList.querySelectorAll('.payloads-update-btn'),
+      btn => btn.addEventListener('click', () => {
+        const name = btn.closest('[data-name]').getAttribute('data-name');
+        updateOnePayload(name, btn);
+      }));
+    Array.prototype.forEach.call(
+      payloadsList.querySelectorAll('.payloads-auto-toggle'),
+      cb => cb.addEventListener('change', () => {
+        const name = cb.closest('[data-name]').getAttribute('data-name');
+        togglePayloadAuto(name, cb.checked ? 1 : 0);
+      }));
+    Array.prototype.forEach.call(
+      payloadsList.querySelectorAll('.payloads-remove-btn'),
+      btn => btn.addEventListener('click', () => {
+        const name = btn.closest('[data-name]').getAttribute('data-name');
+        removePayload(name);
+      }));
+  }
+
+  async function loadPayloads(forceLatest) {
+    if (!payloadsList) return;
+    payloadsStatus.textContent = forceLatest ? 'Refreshing latest tags…' : 'Loading…';
+    try {
+      const r = await fetch(forceLatest
+        ? '/api/payloads/refresh-latest'
+        : '/api/payloads/list');
+      const j = await r.json();
+      renderPayloads(j);
+      payloadsStatus.textContent = '';
+    } catch (e) {
+      payloadsStatus.textContent = 'Error: ' + e.message;
+    }
+  }
+
+  async function updateOnePayload(name, btn) {
+    const original = btn ? btn.textContent : '';
+    if (btn) { btn.disabled = true; btn.textContent = 'Updating…'; }
+    payloadsStatus.textContent = 'Updating ' + name + '…';
+    try {
+      const r = await fetch('/api/payloads/update?name=' +
+                            encodeURIComponent(name));
+      const j = await r.json();
+      if (j.ok) {
+        showToast(name + ' · installed ' + (j.tag || 'latest') +
+                  ' (' + j.wrote + '/' + j.attempted + ' paths)', 'ok');
+      } else {
+        showToast(name + ' update failed: ' + (j.error || 'unknown'), 'err');
+      }
+    } catch (e) {
+      showToast(name + ' update error: ' + e.message, 'err');
+    }
+    if (btn) { btn.disabled = false; btn.textContent = original; }
+    loadPayloads(false);
+  }
+
+  async function togglePayloadAuto(name, on) {
+    try {
+      const r = await fetch('/api/payloads/auto-toggle?name=' +
+                            encodeURIComponent(name) + '&on=' + on);
+      const j = await r.json();
+      renderPayloads(j);
+      showToast(name + ' · auto-on-boot ' + (on ? 'enabled' : 'disabled'), 'ok');
+    } catch (e) {
+      showToast('Toggle failed: ' + e.message, 'err');
+      loadPayloads(false);
+    }
+  }
+
+  if (payloadsRefBtn) {
+    payloadsRefBtn.addEventListener('click', () => loadPayloads(true));
+  }
+
+  async function removePayload(name) {
+    if (!confirm('Remove "' + name + '" from the managed-payloads registry?\n\n' +
+                 'The ELF file(s) on disk will be left alone — only the ' +
+                 'registry entry goes away. You can re-add it later via Browse to add.')) return;
+    try {
+      const r = await fetch('/api/payloads/remove?name=' + encodeURIComponent(name));
+      const j = await r.json();
+      if (j.ok) {
+        showToast(name + ' removed from registry', 'ok');
+        renderPayloads(j);
+      } else {
+        showToast('Remove failed: ' + (j.error || 'unknown'), 'err');
+      }
+    } catch (e) {
+      showToast('Remove error: ' + e.message, 'err');
+    }
+  }
+
+  /* ----- Browse to add a payload ----- */
+  const addName     = document.getElementById('payloads-add-name');
+  const addRepo     = document.getElementById('payloads-add-repo');
+  const addGlob     = document.getElementById('payloads-add-glob');
+  const addFilename = document.getElementById('payloads-add-filename');
+  const addAuto     = document.getElementById('payloads-add-auto');
+  const addLookupB  = document.getElementById('payloads-add-lookup');
+  const addGoB      = document.getElementById('payloads-add-go');
+  const addPreview  = document.getElementById('payloads-add-preview');
+
+  function readAddForm() {
+    return {
+      name:     (addName     && addName.value     || '').trim(),
+      repo:     (addRepo     && addRepo.value     || '').trim(),
+      glob:     (addGlob     && addGlob.value     || '').trim(),
+      filename: (addFilename && addFilename.value || '').trim(),
+      auto:     !!(addAuto && addAuto.checked),
+    };
+  }
+
+  /* Derive a sensible asset glob from one stock filename — replaces
+     the version-like substring with "*" so the next release still
+     matches. e.g. "pldmgr-v0.1.1.elf" → "pldmgr-*.elf". */
+  function deriveAssetGlob(assetName) {
+    if (!assetName) return '';
+    const m = assetName.match(/^(.+?)[-_]v?\d/);
+    if (!m) return assetName;
+    const ext = (assetName.match(/\.[^.]+$/) || ['.elf'])[0];
+    return m[1] + '-*' + ext;
+  }
+
+  /* "owner/repo" → "repo" (or normalise a full URL the same way). */
+  function deriveDisplayName(repo) {
+    if (!repo) return '';
+    let s = repo.trim();
+    /* Strip protocol + host if user pasted a full GitHub URL. */
+    s = s.replace(/^https?:\/\/[^/]+\//i, '');
+    s = s.replace(/\.git$/, '').replace(/\/+$/, '');
+    const slash = s.lastIndexOf('/');
+    return slash >= 0 ? s.substring(slash + 1) : s;
+  }
+
+  /* As the user types a repo, pre-fill display name. The other two
+     fields (glob, filename) need a Lookup to resolve a real asset. */
+  if (addRepo && addName) {
+    addRepo.addEventListener('input', () => {
+      if (!addName.value || addName.dataset.autoFilled === '1') {
+        addName.value = deriveDisplayName(addRepo.value);
+        addName.dataset.autoFilled = '1';
+      }
+    });
+    addName.addEventListener('input', () => {
+      addName.dataset.autoFilled = '0';
+    });
+  }
+
+  if (addLookupB) {
+    addLookupB.addEventListener('click', async () => {
+      const repo = (addRepo && addRepo.value || '').trim();
+      if (!repo) {
+        addPreview.innerHTML =
+          '<span style="color:var(--danger);">Paste a repo URL first (owner/repo or full GitHub link).</span>';
+        return;
+      }
+      /* Glob defaults to "*.elf" before we know the asset name —
+         that's the broadest matcher and lets the backend pick the
+         single .elf asset most repos ship. We overwrite it below
+         with a tighter glob derived from the resolved asset. */
+      const probeGlob = (addGlob && addGlob.value && addGlob.value.trim()) || '*.elf';
+      addPreview.textContent = 'Looking up latest release…';
+      try {
+        const r = await fetch('/api/payloads/lookup?repo=' +
+                              encodeURIComponent(repo) +
+                              '&asset_glob=' + encodeURIComponent(probeGlob));
+        const j = await r.json();
+        if (j.ok) {
+          /* Auto-fill display name (if user hasn't edited it), asset
+             glob (derived from the matched filename), and install
+             filename = stock asset filename verbatim. The user can
+             still edit any of these before clicking Add. */
+          if (addName && (!addName.value.trim() || addName.dataset.autoFilled !== '0')) {
+            addName.value = deriveDisplayName(j.repo);
+            addName.dataset.autoFilled = '1';
+          }
+          if (addGlob) addGlob.value = deriveAssetGlob(j.assetName);
+          if (addFilename) addFilename.value = j.assetName || '';
+          addPreview.innerHTML =
+            '<div>✓ Matches <strong>' + escAttr(j.repo) + '</strong> · tag <strong>' +
+              escAttr(j.tag) + '</strong></div>' +
+            '<div style="font-family:ui-monospace,monospace; font-size:11px; opacity:0.8; margin-top:2px;">' +
+              'Asset: ' + escAttr(j.assetName) + '</div>' +
+            '<div style="font-size:11px; opacity:0.75; margin-top:4px;">' +
+              'Form auto-filled — tweak if needed, then hit Add.</div>';
+        } else {
+          addPreview.innerHTML =
+            '<span style="color:var(--danger);">' + escAttr(j.error || 'lookup failed') + '</span>';
+        }
+      } catch (e) {
+        addPreview.innerHTML =
+          '<span style="color:var(--danger);">Lookup error: ' + escAttr(e.message) + '</span>';
+      }
+    });
+  }
+
+  if (addGoB) {
+    addGoB.addEventListener('click', async () => {
+      const f = readAddForm();
+      if (!f.name || !f.repo || !f.glob || !f.filename) {
+        addPreview.innerHTML =
+          '<span style="color:var(--danger);">Name, repo, asset glob and install filename are all required.</span>';
+        return;
+      }
+      addGoB.disabled = true;
+      addPreview.textContent = 'Adding ' + f.name + '…';
+      try {
+        const qs = '?name='             + encodeURIComponent(f.name) +
+                   '&repo='             + encodeURIComponent(f.repo) +
+                   '&asset_glob='       + encodeURIComponent(f.glob) +
+                   '&install_filename=' + encodeURIComponent(f.filename) +
+                   '&auto_update_on_boot=' + (f.auto ? 1 : 0);
+        const r = await fetch('/api/payloads/add' + qs);
+        const j = await r.json();
+        if (j.ok && Array.isArray(j.items)) {
+          renderPayloads(j);
+          showToast(f.name + ' added to registry', 'ok');
+          addName.value = addRepo.value = addGlob.value = addFilename.value = '';
+          addPreview.textContent = '';
+        } else {
+          addPreview.innerHTML =
+            '<span style="color:var(--danger);">Add failed: ' +
+            escAttr(j.error || 'unknown') + '</span>';
+        }
+      } catch (e) {
+        addPreview.innerHTML =
+          '<span style="color:var(--danger);">Add error: ' + escAttr(e.message) + '</span>';
+      }
+      addGoB.disabled = false;
+    });
+  }
+
+  /* ----- Local-file upload (POSTs raw ELF body to /api/payloads/upload). */
+  const uploadFileInput = document.getElementById('payloads-upload-file');
+  const uploadGoBtn     = document.getElementById('payloads-upload-go');
+  const uploadStatus    = document.getElementById('payloads-upload-status');
+
+  if (uploadFileInput && uploadGoBtn) {
+    uploadFileInput.addEventListener('change', () => {
+      const f = uploadFileInput.files && uploadFileInput.files[0];
+      uploadGoBtn.disabled = !f;
+      if (f && uploadStatus) {
+        const kb = (f.size / 1024).toFixed(1);
+        uploadStatus.textContent = 'Selected: ' + f.name + ' (' + kb + ' KB)';
+      }
+    });
+    uploadGoBtn.addEventListener('click', async () => {
+      const f = uploadFileInput.files && uploadFileInput.files[0];
+      if (!f) return;
+      if (!/\.elf$/i.test(f.name)) {
+        uploadStatus.innerHTML =
+          '<span style="color:var(--danger);">Only .elf files are accepted.</span>';
+        return;
+      }
+      const safe = f.name.replace(/[^A-Za-z0-9._-]/g, '_');
+      const qs = '?install_filename=' + encodeURIComponent(safe) +
+                 '&name=' + encodeURIComponent(safe.replace(/\.elf$/i, ''));
+      uploadGoBtn.disabled = true;
+      uploadStatus.textContent = 'Uploading ' + safe + '…';
+      try {
+        const r = await fetch('/api/payloads/upload' + qs, {
+          method: 'POST',
+          body: f,
+          headers: { 'Content-Type': 'application/octet-stream' },
+        });
+        const j = await r.json();
+        if (j.ok) {
+          showToast(safe + ' uploaded · ' + j.wrote + '/' + j.attempted + ' paths', 'ok');
+          uploadStatus.innerHTML =
+            '<span style="color:var(--ok);">✓ Registered · ' +
+            escAttr((j.paths || []).join(', ')) + '</span>';
+          uploadFileInput.value = '';
+          loadPayloads(false);
+        } else {
+          uploadStatus.innerHTML =
+            '<span style="color:var(--danger);">Upload failed: ' +
+            escAttr(j.error || 'unknown') + '</span>';
+        }
+      } catch (e) {
+        uploadStatus.innerHTML =
+          '<span style="color:var(--danger);">Upload error: ' + escAttr(e.message) + '</span>';
+      }
+      uploadGoBtn.disabled = !uploadFileInput.files.length;
+    });
+  }
+
+  /* Lazy-load when the section is first opened, then on every reopen. */
+  (() => {
+    if (!payloadsList) return;
+    const details = payloadsList.closest('details');
+    if (!details) return;
+    let loaded = false;
+    details.addEventListener('toggle', () => {
+      if (details.open && !loaded) { loaded = true; loadPayloads(false); }
+    });
+  })();
+
+  // ---------- PKG Zone cache control (Settings card) ----------
+  const pkgzCacheStatus = document.getElementById('pkgzone-cache-status');
+  const pkgzCacheSub    = document.getElementById('pkgzone-cache-sub');
+  const pkgzRefreshBn   = document.getElementById('pkgzone-refresh-now');
+
+  function fmtAgo(secs) {
+    if (!Number.isFinite(secs) || secs < 0) return 'unknown';
+    if (secs < 60)    return secs + 's ago';
+    if (secs < 3600)  return Math.floor(secs / 60) + 'm ago';
+    if (secs < 86400) return Math.floor(secs / 3600) + 'h ago';
+    return Math.floor(secs / 86400) + 'd ago';
+  }
+  function fmtIn(secs) {
+    if (!Number.isFinite(secs) || secs <= 0) return 'now (refresh is due)';
+    if (secs < 60)    return 'in ' + secs + 's';
+    if (secs < 3600)  return 'in ' + Math.floor(secs / 60) + 'm';
+    if (secs < 86400) return 'in ' + Math.floor(secs / 3600) + 'h';
+    return 'in ' + Math.floor(secs / 86400) + 'd';
+  }
+
+  function renderPkgzCacheStatus(j) {
+    if (!pkgzCacheStatus) return;
+    if (!j || !j.ok) {
+      pkgzCacheStatus.innerHTML = '<em style="color:var(--danger);">' +
+        'Could not load cache state: ' +
+        (j && j.error ? j.error : 'unknown error') + '</em>';
+      if (pkgzCacheSub) pkgzCacheSub.textContent = 'error';
+      return;
+    }
+    const now      = Math.floor(Date.now() / 1000);
+    const fetched  = j.fetchedAt | 0;
+    const items    = Array.isArray(j.items) ? j.items.length : 0;
+    const age      = fetched ? (now - fetched) : -1;
+    const TTL      = 7 * 24 * 60 * 60;
+    const expiresIn = fetched ? (TTL - age) : 0;
+
+    const when = fetched ? new Date(fetched * 1000).toLocaleString() : '—';
+    pkgzCacheStatus.innerHTML =
+      '<div><strong>' + items + '</strong> packages cached</div>' +
+      '<div>Last fetched <strong>' + fmtAgo(age) + '</strong> (' +
+        escAttr(when) + ')</div>' +
+      '<div>Next automatic refresh: <strong>' + fmtIn(expiresIn) + '</strong></div>';
+    if (pkgzCacheSub) {
+      pkgzCacheSub.textContent = items + ' cached · ' + fmtAgo(age);
+    }
+  }
+
+  async function loadPkgzCache(forceRefresh) {
+    if (!pkgzCacheStatus) return;
+    pkgzCacheStatus.textContent = forceRefresh
+      ? 'Refreshing from pkg-zone.com…'
+      : 'Loading…';
+    try {
+      const r = await fetch(forceRefresh
+        ? '/api/pkgzone/refresh'
+        : '/api/pkgzone/list');
+      const j = await r.json();
+      renderPkgzCacheStatus(j);
+      if (forceRefresh && j.ok) {
+        showToast('PKG Zone catalog refreshed (' +
+                  (j.items ? j.items.length : 0) + ' packages)', 'ok');
+      } else if (forceRefresh && !j.ok) {
+        showToast('PKG Zone refresh failed: ' +
+                  (j.error || 'unknown'), 'err');
+      }
+    } catch (e) {
+      pkgzCacheStatus.innerHTML =
+        '<em style="color:var(--danger);">Error: ' + e.message + '</em>';
+      if (forceRefresh) showToast('PKG Zone refresh error: ' + e.message, 'err');
+    }
+  }
+
+  if (pkgzRefreshBn) {
+    pkgzRefreshBn.addEventListener('click', () => loadPkgzCache(true));
+  }
+  /* Lazy-load on first open. */
+  (() => {
+    if (!pkgzCacheStatus) return;
+    const details = pkgzCacheStatus.closest('details');
+    if (!details) return;
+    let loaded = false;
+    details.addEventListener('toggle', () => {
+      if (details.open && !loaded) { loaded = true; loadPkgzCache(false); }
     });
   })();
 
@@ -3819,6 +6312,138 @@
     if (n >= 1024)           return (n/1024).toFixed(1)           + ' KiB';
     return n + ' B';
   }
+
+  // ---------- exFAT / FFPKG URL downloader payload ----------
+  const gameDlType   = document.getElementById('game-download-type');
+  const gameDlUrl    = document.getElementById('game-download-url');
+  const gameDlName   = document.getElementById('game-download-name');
+  const gameDlStart  = document.getElementById('game-download-start');
+  const gameDlStatus = document.getElementById('game-download-status');
+  const gameDlDest   = document.getElementById('game-download-dest');
+  const gameDlProg   = document.getElementById('game-download-progress');
+  const gameDlBar    = document.getElementById('game-download-bar');
+  const gameDlSub    = document.getElementById('game-download-sub');
+  let gameDlTimer    = null;
+
+  function gameDlActive(state) {
+    return state === 'starting' || state === 'running';
+  }
+
+  function renderGameDownloadStatus(s) {
+    if (!gameDlStatus) return;
+    const state = s && s.state ? s.state : 'idle';
+    const total = Number(s && s.total) || 0;
+    const downloaded = Number(s && s.downloaded) || 0;
+    let pct = Number(s && s.percent);
+    if ((!Number.isFinite(pct) || pct <= 0) && total > 0) {
+      pct = Math.max(0, Math.min(100, downloaded / total * 100));
+    }
+    if (!Number.isFinite(pct)) pct = 0;
+    pct = Math.max(0, Math.min(100, pct));
+
+    if (gameDlProg && gameDlBar) {
+      gameDlProg.style.display = state === 'idle' ? 'none' : '';
+      gameDlBar.style.width = pct.toFixed(1) + '%';
+    }
+    if (gameDlDest) {
+      gameDlDest.innerHTML = s && s.dest
+        ? 'Destination: <code>' + escAttr(s.dest) + '</code>'
+        : '';
+    }
+
+    const active = gameDlActive(state);
+    if (gameDlStart) gameDlStart.disabled = active;
+
+    if (state === 'idle') {
+      gameDlStatus.textContent = 'No download running.';
+      if (gameDlSub) gameDlSub.textContent = 'idle';
+      return;
+    }
+
+    const bits = [];
+    bits.push(state === 'done' ? 'Completed' :
+              state === 'error' ? 'Error' :
+              state === 'cancelled' ? 'Cancelled' :
+              state === 'starting' ? 'Starting' : 'Downloading');
+    bits.push(pct.toFixed(1) + '%');
+    if (total > 0) bits.push(fmtBytes(downloaded) + ' / ' + fmtBytes(total));
+    else if (downloaded > 0) bits.push(fmtBytes(downloaded));
+    if (Number(s && s.speed) > 0 && active) bits.push(fmtBytes(Number(s.speed)) + '/s');
+    if (s && s.status && s.status !== state) bits.push(s.status);
+    if (s && s.stale && active) bits.push('waiting for payload update');
+    if (s && s.error) bits.push(s.error);
+
+    gameDlStatus.textContent = bits.join(' · ');
+    if (gameDlSub) {
+      gameDlSub.textContent = (s && s.type ? s.type : 'download') + ' · ' +
+        (state === 'done' ? '100%' : state === 'error' ? 'error' : pct.toFixed(0) + '%');
+    }
+  }
+
+  async function pollGameDownloadStatus() {
+    try {
+      const r = await fetch('/api/downloader/status', { cache: 'no-store' });
+      const s = await r.json();
+      renderGameDownloadStatus(s);
+      if (gameDlActive(s.state)) {
+        gameDlTimer = setTimeout(pollGameDownloadStatus, 1200);
+      } else {
+        gameDlTimer = null;
+      }
+    } catch (e) {
+      gameDlStatus.textContent = 'Status error: ' + e.message;
+      gameDlTimer = setTimeout(pollGameDownloadStatus, 3000);
+    }
+  }
+
+  if (gameDlStart) {
+    gameDlStart.addEventListener('click', async () => {
+      const url = (gameDlUrl.value || '').trim();
+      if (!/^https?:\/\//i.test(url)) {
+        showToast('Paste an http(s) URL first', 'err');
+        return;
+      }
+      const type = (gameDlType.value || 'exfat').trim();
+      const name = (gameDlName.value || '').trim();
+      let qs = 'type=' + encodeURIComponent(type) +
+               '&url=' + encodeURIComponent(url);
+      if (name) qs += '&name=' + encodeURIComponent(name);
+
+      if (gameDlTimer) {
+        clearTimeout(gameDlTimer);
+        gameDlTimer = null;
+      }
+      gameDlStart.disabled = true;
+      gameDlStatus.textContent = 'Injecting downloader payload...';
+      if (gameDlProg && gameDlBar) {
+        gameDlProg.style.display = '';
+        gameDlBar.style.width = '0%';
+      }
+
+      try {
+        const r = await fetch('/api/downloader/start?' + qs);
+        const j = await r.json();
+        if (!j.ok) {
+          gameDlStart.disabled = false;
+          gameDlStatus.textContent = 'Failed: ' + (j.error || 'start failed');
+          showToast(j.error || 'download start failed', 'err');
+          return;
+        }
+        renderGameDownloadStatus(j);
+        showToast('Downloader payload injected', 'ok');
+        gameDlTimer = setTimeout(pollGameDownloadStatus, 1000);
+      } catch (e) {
+        gameDlStart.disabled = false;
+        gameDlStatus.textContent = 'Start error: ' + e.message;
+        showToast('download start: ' + e.message, 'err');
+      }
+    });
+    gameDlUrl.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') gameDlStart.click();
+    });
+  }
+
+  if (gameDlStatus) pollGameDownloadStatus();
 
   if (pkgBrowseGo) {
     pkgBrowseGo.addEventListener('click', () => pkgBrowseFile.click());
@@ -4506,6 +7131,1216 @@
   });
 
   load();
+})();
+
+/* ──────────────────────────────────────────────────────────────────
+   Thermal curve editor — minimal SVG-based 4-point editor. Click
+   on the chart to drop a new point, drag existing points to reshape,
+   click a point to remove it. Persists to /api/fan/curve/set as
+   ?p0=tempC,thresholdC&p1=… (matches the C-side parser). */
+(function curveBoot() {
+  const svg     = document.getElementById('curve-svg');
+  const line    = document.getElementById('curve-line');
+  const status  = document.getElementById('curve-status');
+  const list    = document.getElementById('curve-points-list');
+  const saveBtn = document.getElementById('curve-save');
+  const addBtn  = document.getElementById('curve-add');
+  const resetBtn = document.getElementById('curve-reset');
+  if (!svg) return;
+
+  const TEMP_MIN = 30, TEMP_MAX = 95;
+  const THR_MIN  = 30, THR_MAX  = 90;
+  let points = [
+    { tempC: 50, thresholdC: 70 },
+    { tempC: 65, thresholdC: 60 },
+    { tempC: 80, thresholdC: 50 },
+  ];
+
+  function tempToX(t) { return 36 + (t - TEMP_MIN) / (TEMP_MAX - TEMP_MIN) * 318; }
+  function thrToY(v)  { return 180 - (v - THR_MIN)  / (THR_MAX  - THR_MIN)  * 160; }
+  function xToTemp(x) { return Math.round(TEMP_MIN + (x - 36) / 318 * (TEMP_MAX - TEMP_MIN)); }
+  function yToThr(y)  { return Math.round(THR_MIN  + (180 - y) / 160 * (THR_MAX  - THR_MIN)); }
+
+  function redraw() {
+    points.sort((a, b) => a.tempC - b.tempC);
+    /* Remove old <circle>s */
+    svg.querySelectorAll('circle.pt').forEach(c => c.remove());
+    /* Polyline */
+    line.setAttribute('points',
+      points.map(p => tempToX(p.tempC) + ',' + thrToY(p.thresholdC)).join(' '));
+    /* Points */
+    points.forEach((p, i) => {
+      const c = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+      c.setAttribute('class', 'pt');
+      c.setAttribute('cx', tempToX(p.tempC));
+      c.setAttribute('cy', thrToY(p.thresholdC));
+      c.setAttribute('r', 6);
+      c.dataset.idx = i;
+      svg.appendChild(c);
+    });
+    /* Sidebar list */
+    list.innerHTML = points.map((p, i) =>
+      '<span style="display:inline-block; padding:3px 8px; background:var(--bg-0); ' +
+      'border:1px solid rgba(255,255,255,0.08); border-radius:6px; margin:2px;">' +
+      '#' + (i+1) + ' ' + p.tempC + '°C → fan@' + p.thresholdC + '°C' +
+      '</span>').join(' ');
+  }
+
+  let dragging = null;
+  svg.addEventListener('pointerdown', (e) => {
+    const c = e.target.closest('circle.pt');
+    if (c) {
+      dragging = c;
+      svg.setPointerCapture(e.pointerId);
+    } else {
+      /* Click on empty area = add a point */
+      const rect = svg.getBoundingClientRect();
+      const x = (e.clientX - rect.left) / rect.width  * 360;
+      const y = (e.clientY - rect.top)  / rect.height * 200;
+      const t = xToTemp(x), th = yToThr(y);
+      if (t >= TEMP_MIN && t <= TEMP_MAX && th >= THR_MIN && th <= THR_MAX) {
+        points.push({ tempC: t, thresholdC: th });
+        redraw();
+      }
+    }
+  });
+  svg.addEventListener('pointermove', (e) => {
+    if (!dragging) return;
+    const rect = svg.getBoundingClientRect();
+    const x = (e.clientX - rect.left) / rect.width  * 360;
+    const y = (e.clientY - rect.top)  / rect.height * 200;
+    const idx = parseInt(dragging.dataset.idx, 10);
+    const p = points[idx];
+    p.tempC      = Math.max(TEMP_MIN, Math.min(TEMP_MAX, xToTemp(x)));
+    p.thresholdC = Math.max(THR_MIN,  Math.min(THR_MAX,  yToThr(y)));
+    redraw();
+  });
+  svg.addEventListener('pointerup', () => { dragging = null; });
+  svg.addEventListener('dblclick', (e) => {
+    const c = e.target.closest('circle.pt');
+    if (!c) return;
+    const idx = parseInt(c.dataset.idx, 10);
+    points.splice(idx, 1);
+    redraw();
+  });
+
+  addBtn.addEventListener('click', () => {
+    points.push({ tempC: 70, thresholdC: 55 });
+    redraw();
+  });
+  resetBtn.addEventListener('click', () => {
+    points = [
+      { tempC: 50, thresholdC: 70 },
+      { tempC: 65, thresholdC: 60 },
+      { tempC: 80, thresholdC: 50 },
+    ];
+    redraw();
+  });
+  saveBtn.addEventListener('click', async () => {
+    status.textContent = 'saving…';
+    const qs = points.map((p, i) => 'p' + i + '=' + p.tempC + ',' + p.thresholdC).join('&');
+    try {
+      const r = await fetch('/api/fan/curve/set?' + qs, { method: 'POST' });
+      const j = await r.json();
+      status.textContent = j.ok ? '✔ saved → ' + j.path : '✗ save failed';
+    } catch (err) {
+      status.textContent = '✗ ' + err.message;
+    }
+  });
+
+  /* Initial load — pull what's persisted, fall back to defaults */
+  fetch('/api/fan/curve').then(r => r.json()).then(j => {
+    if (j.points && j.points.length) {
+      points = j.points.map(p => ({
+        tempC:      Number(p.tempC || p.t || 0),
+        thresholdC: Number(p.thresholdC || p.th || 0),
+      })).filter(p => p.tempC && p.thresholdC);
+      if (!points.length) points = [{tempC:60,thresholdC:60}];
+    }
+    redraw();
+  }).catch(() => redraw());
+})();
+
+/* ──────────────────────────────────────────────────────────────────
+   Sidebar nav for Settings — VoidShell-style category switcher.
+
+   Tags every top-level <details class="settings-section"> with a
+   data-cat attribute based on its summary text, then drives
+   visibility from sidebar clicks. Existing JS handlers all keep
+   binding to their target elements; we just hide the sections that
+   don't belong to the active category.
+
+   Categories (must match data-cat-target values on sidebar buttons):
+     appearance — theme picker
+     jb         — Kstuff & auto-toggle, BackPork, nanoDNS
+     storage    — ShadowMountPlus, App Dumper, exFAT/FFPKG downloader, PKG Installer,
+                  Homebrew installer
+     mods       — Cheat engine
+     profile    — Avatar Maker, NP fake sign-in, NP account restore,
+                  Offline account activation
+     system     — FTP server, Fan control, Garlic, Y2JB autoloader
+
+   Hash deep-linking still works: when the URL hash points at a card,
+   we look up its containing section, switch to that section's
+   category, then hand off to jumpToKstuffCardIfRequested. */
+(function settingsCategoriesBoot() {
+  const STORAGE_KEY = 'sl-settings-cat';
+  const DEFAULT_CAT = 'appearance';
+
+  /* Substring-keyword → category map. First-match wins. */
+  const CAT_RULES = [
+    [['Appearance'],                                      'appearance'],
+    [['Kstuff', 'BackPork', 'nanoDNS'],                   'jb'],
+    [['ShadowMountPlus', 'App Dumper',
+      'exFAT', 'PKG Installer', 'Homebrew installer'],    'storage'],
+    [['Cheat engine'],                                    'mods'],
+    [['Avatar Maker', 'NP fake sign', 'NP account',
+      'Offline account'],                                 'profile'],
+    [['FTP server', 'Fan control', 'Garlic',
+      'Y2JB autoloader'],                                 'system'],
+  ];
+
+  function classify(text) {
+    const t = text.toLowerCase();
+    for (const [keys, cat] of CAT_RULES) {
+      for (const k of keys) {
+        if (t.includes(k.toLowerCase())) return cat;
+      }
+    }
+    return null;
+  }
+
+  /* Top-level sections only — direct children of #settings-content.
+     Nested <details> (e.g., the two inside PKG Installer) stay
+     un-tagged so they follow their parent's visibility. */
+  function tagSections() {
+    const root = document.getElementById('settings-content');
+    if (!root) return {};
+    const sections = Array.from(root.children).filter(
+      el => el.tagName === 'DETAILS' && el.classList.contains('settings-section'));
+    const counts = {};
+    for (const s of sections) {
+      const sum = s.querySelector(':scope > summary');
+      const txt = (sum?.textContent || '').replace(/\s+/g, ' ').trim();
+      const cat = classify(txt);
+      if (cat) {
+        s.setAttribute('data-cat', cat);
+        counts[cat] = (counts[cat] || 0) + 1;
+      } else {
+        s.setAttribute('data-cat', 'system');
+        counts.system = (counts.system || 0) + 1;
+        console.warn('[settings] uncategorised section:', txt);
+      }
+    }
+    return counts;
+  }
+
+  function setActiveCategory(cat) {
+    const root = document.getElementById('settings-content');
+    if (!root) return;
+    root.querySelectorAll('details.settings-section[data-cat]').forEach(d => {
+      if (d.dataset.cat === cat) d.setAttribute('data-priv-show', '');
+      else d.removeAttribute('data-priv-show');
+    });
+    document.querySelectorAll('#settings-sidebar [data-cat-target]').forEach(b => {
+      if (b.dataset.catTarget === cat) b.setAttribute('data-active', '');
+      else b.removeAttribute('data-active');
+    });
+    try { localStorage.setItem(STORAGE_KEY, cat); } catch (_) {}
+    const counter = document.getElementById('settings-cat-count');
+    if (counter) {
+      const visible = root.querySelectorAll(
+        'details.settings-section[data-cat][data-priv-show]').length;
+      counter.textContent = visible + ' shown';
+    }
+  }
+
+  /* Walk up to find the wrapping <details> with a data-cat. */
+  function categoryOf(el) {
+    let n = el;
+    while (n && n !== document.body) {
+      if (n.tagName === 'DETAILS' && n.dataset.cat) return n.dataset.cat;
+      n = n.parentElement;
+    }
+    return null;
+  }
+
+  /* Public hook for jumpToKstuffCardIfRequested (and any future
+     deep-link helper) to switch category before scrolling. */
+  window.SLSettings = {
+    activateCategoryFor(el) {
+      const cat = categoryOf(el);
+      if (cat) setActiveCategory(cat);
+    },
+    setActiveCategory: setActiveCategory,
+  };
+
+  function search(query) {
+    const root = document.getElementById('settings-content');
+    if (!root) return;
+    const q = (query || '').trim().toLowerCase();
+    root.querySelectorAll('details.settings-section[data-cat]').forEach(d => {
+      if (!q) {
+        d.removeAttribute('data-search-hide');
+        return;
+      }
+      const text = (d.textContent || '').toLowerCase();
+      if (text.includes(q)) d.removeAttribute('data-search-hide');
+      else                  d.setAttribute('data-search-hide', '');
+    });
+  }
+
+  document.addEventListener('DOMContentLoaded', () => {
+    const counts = tagSections();
+    document.querySelectorAll('#settings-sidebar [data-cat-count]').forEach(el => {
+      const cat = el.dataset.catCount;
+      el.textContent = counts[cat] || 0;
+    });
+    document.querySelectorAll('#settings-sidebar [data-cat-target]').forEach(b => {
+      b.addEventListener('click', () => setActiveCategory(b.dataset.catTarget));
+    });
+    const searchEl = document.getElementById('settings-search');
+    if (searchEl) {
+      searchEl.addEventListener('input', () => search(searchEl.value));
+    }
+    /* Initial category: persisted choice → URL hash target → default. */
+    let saved = DEFAULT_CAT;
+    try { saved = localStorage.getItem(STORAGE_KEY) || DEFAULT_CAT; } catch (_) {}
+    if (window.location.hash) {
+      const targetEl = document.querySelector(window.location.hash);
+      if (targetEl) {
+        const cat = categoryOf(targetEl);
+        if (cat) saved = cat;
+      }
+    }
+    setActiveCategory(saved);
+  });
+})();
+
+
+/* ──────────────────────────────────────────────────────────────────
+   Theme picker — Dark / OLED / Light / High Contrast.
+   Persists choice in localStorage('sl-theme'). The CSS variable
+   blocks at the top of <style> handle the actual look. */
+(function themeBoot() {
+  const KEY = 'sl-theme';
+  const VALID = ['dark', 'oled', 'light', 'contrast'];
+  function apply(t) {
+    if (!VALID.includes(t)) t = 'dark';
+    document.documentElement.setAttribute('data-theme', t);
+    document.querySelectorAll('.theme-btn').forEach(b => {
+      if (b.dataset.theme === t) b.setAttribute('data-theme-active', '');
+      else b.removeAttribute('data-theme-active');
+    });
+    try { localStorage.setItem(KEY, t); } catch (_) {}
+  }
+  document.addEventListener('click', (e) => {
+    const btn = e.target.closest('.theme-btn');
+    if (btn) apply(btn.dataset.theme);
+  });
+  let saved = 'dark';
+  try { saved = localStorage.getItem(KEY) || 'dark'; } catch (_) {}
+  apply(saved);
+})();
+
+/* ──────────────────────────────────────────────────────────────────
+   Disclaimer modal — opens on header-button click, closes on the ✕,
+   on "Got it", on backdrop click, or on Escape. Stateless: no
+   persistence flag, every visit can re-read. */
+(function disclaimerBoot() {
+  const modal = document.getElementById('disclaimer-modal');
+  const open  = document.getElementById('disclaimer-open');
+  const close = () => modal.removeAttribute('data-open');
+  open?.addEventListener('click', () => modal.setAttribute('data-open', ''));
+  document.getElementById('disclaimer-close')?.addEventListener('click', close);
+  document.getElementById('disclaimer-gotit')?.addEventListener('click', close);
+  modal?.addEventListener('click', (e) => {
+    if (e.target === modal) close();
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && modal?.hasAttribute('data-open')) close();
+  });
+})();
+
+/* ──────────────────────────────────────────────────────────────────
+   hotshotzproto Activity dashboard — full port of hotshotz79's 22-commit
+   Activity feature, adapted to 1.0.79's structure. Drives all four panel
+   sections plus HLTB:
+
+     1. Recently Played + user picker — /api/activitydb/users +
+        /api/activitydb?table=tbl_iconinfo_<user>; avatar from
+        /api/activitydb/avatar?id=<userId>
+     2. Game Activity — list of every installed title (from /appdb),
+        click-to-select, mocked 15-day bar chart and HLTB target boxes
+     3. Year in Review — three highlight cards + monthly bars + pie
+        chart (highlight selection is randomised mock; needs sl2_log
+        backing data in a follow-up)
+     4. Progress Tracker — chapter checklist + progress bar (mocked)
+
+   HLTB integration: opt-in via the inline toggle at the top of the
+   panel. Persists to localStorage('sonic_hltb' + 'sonic_hltb_mirror').
+   Cache lives at sonic_hltb_<game-name> with a 30-day TTL. The Vercel
+   proxy lives in hltb-proxy/ in the repo — user deploys their own. */
+(function activityBoot() {
+  const btn   = document.getElementById('activity-toggle');
+  const panel = document.getElementById('activity-panel');
+  if (!btn || !panel) return;
+
+  const home = document.querySelector('main');
+  const spot = document.getElementById('spotlight') || document.querySelector('.spotlight');
+  const settingsPanel = document.getElementById('settings-panel');
+
+  let activityGames = [];
+  let activitySelected = null;
+  let sysUsers = [];
+  let sysCurrentUser = null;
+  let loaded = false;
+
+  function displayName_act(t) {
+    if (!t) return '';
+    return (t.titleName && t.titleName.trim()) ? t.titleName : t.titleId;
+  }
+  function initials_act(s) {
+    if (!s) return '?';
+    return s.split(/\s+/).filter(Boolean).slice(0, 2)
+      .map(x => x[0].toUpperCase()).join('') || '?';
+  }
+
+  /* ---------- HowLongToBeat (Vercel API mirror) ---------- */
+  const HLTB_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+  const HLTB_PFX = 'sonic_hltb_';
+
+  function hltbCacheKey(name) {
+    return HLTB_PFX + (name || '').toLowerCase().replace(/\s+/g, '_').slice(0, 80);
+  }
+  function hltbCacheGet(name) {
+    try {
+      const raw = localStorage.getItem(hltbCacheKey(name));
+      if (!raw) return null;
+      const j = JSON.parse(raw);
+      if (!j || (Date.now() - j.fetchedAt) > HLTB_TTL_MS) return null;
+      return j;
+    } catch (_) { return null; }
+  }
+  function hltbCacheSet(name, data) {
+    try {
+      localStorage.setItem(hltbCacheKey(name), JSON.stringify({ ...data, fetchedAt: Date.now() }));
+    } catch (_) {}
+  }
+  function hltbCacheFlush() {
+    const toDelete = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k && k.startsWith(HLTB_PFX) && k !== 'sonic_hltb' && k !== 'sonic_hltb_mirror') {
+        toDelete.push(k);
+      }
+    }
+    toDelete.forEach(k => localStorage.removeItem(k));
+    if (sysCurrentUser) renderRecentlyPlayed(activityGames);
+  }
+  window.hltbCacheFlush = hltbCacheFlush;
+
+  /* Per-game flush — referenced from the inline Refresh button in
+     the Game Activity Detail HLTB block. Removes just this title's
+     cached entry and re-fires selectActivityGame to repaint with
+     a fresh fetch. */
+  function hltbCacheFlushGame(name) {
+    try { localStorage.removeItem(hltbCacheKey(name)); } catch (_) {}
+    if (activitySelected) selectActivityGame(activitySelected);
+  }
+  window.hltbCacheFlushGame = hltbCacheFlushGame;
+
+  function syncHltbRefreshBtn() {
+    const el = document.getElementById('hltb-refresh-btn');
+    if (!el) return;
+    const isEnabled = localStorage.getItem('sonic_hltb') === '1';
+    const hasUrl    = !!localStorage.getItem('sonic_hltb_mirror');
+    el.style.display = (isEnabled && hasUrl) ? 'inline-block' : 'none';
+  }
+
+  function formatHltbTime(seconds) {
+    if (!seconds || seconds <= 0) return '-';
+    const hrs = seconds / 3600;
+    const whole = Math.floor(hrs);
+    const frac = hrs - whole;
+    if (frac >= 0.75) return (whole + 1) + ' Hours';
+    if (frac >= 0.25) return whole + '½ Hours';
+    return whole + ' Hours';
+  }
+
+  /* The Settings card lets users enter the proxy's ROOT URL (e.g.
+     "https://hltb-proxy-sand.vercel.app/"). The actual endpoint is
+     <root>/api/search, so we tolerate either by appending the path
+     when it's missing. */
+  function hltbResolveSearchUrl(raw) {
+    if (!raw) return '';
+    let u = raw.trim();
+    if (!u) return '';
+    if (/\/api\/search\/?$/i.test(u)) return u;
+    if (!u.endsWith('/')) u += '/';
+    return u + 'api/search';
+  }
+
+  async function hltbFetch(name) {
+    const isEnabled = localStorage.getItem('sonic_hltb') === '1';
+    const mirrorUrl = hltbResolveSearchUrl(localStorage.getItem('sonic_hltb_mirror'));
+    if (!isEnabled || !mirrorUrl) return { main: 0, extras: 0, hundo: 0, hit: false };
+
+    const cached = hltbCacheGet(name);
+    if (cached) return cached;
+
+    try {
+      const r = await fetch(mirrorUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name })
+      });
+      if (!r.ok) throw new Error('http ' + r.status);
+      const j = await r.json();
+      const arr = (j && (j.data || j.games || (Array.isArray(j) ? j : []))) || [];
+      if (!arr.length) throw new Error('no hits');
+
+      const lower = name.toLowerCase();
+      let best = arr[0];
+      for (const e of arr) {
+        const en = (e.game_name || e.name || '').toLowerCase();
+        if (en === lower) { best = e; break; }
+        if (en.includes(lower)) best = e;
+      }
+      const res = {
+        main:   Number(best.comp_main || best.gameplayMain || 0),
+        extras: Number(best.comp_plus || best.gameplayMainExtra || 0),
+        hundo:  Number(best.comp_100  || best.gameplayCompletionist || 0),
+        hit: true
+      };
+      hltbCacheSet(name, res);
+      return res;
+    } catch (_) {
+      const miss = { main: 0, extras: 0, hundo: 0, hit: false };
+      hltbCacheSet(name, miss);
+      return miss;
+    }
+  }
+
+  /* ---------- Section 1: Recently Played ---------- */
+  async function renderRecentlyPlayed(games) {
+    const container = document.getElementById('recent-played-cards');
+    if (!sysCurrentUser || !sysCurrentUser.table) {
+      container.innerHTML = '<div style="grid-column:1/-1; padding:20px; text-align:center; color:var(--fg-1);">Please select a valid user profile</div>';
+      return;
+    }
+    try {
+      const res = await fetch('/api/activitydb?table=' + encodeURIComponent(sysCurrentUser.table));
+      const data = await res.json();
+      if (!data.ok || !data.recent || !data.recent.length) {
+        container.innerHTML = '<div style="grid-column:1/-1; padding:20px; text-align:center; color:var(--fg-1);">No recent activity found</div>';
+        return;
+      }
+      const cardsHtml = await Promise.all(data.recent.map(async (item) => {
+        const titleId = item.titleId;
+        const hours = (item.totalFgTime / 3600).toFixed(1);
+        const lastSessionHrs = item.lastSessionTime
+          ? (item.lastSessionTime / 3600).toFixed(1) + ' hrs'
+          : null;
+
+        let dateStr = item.createdDate || 'Unknown';
+        const ts = parseInt(dateStr, 10);
+        if (!isNaN(ts) && ts > 1000000 && !dateStr.includes('-')) {
+          const date = new Date(ts > 1e11 ? ts : ts * 1000);
+          dateStr = (date.getMonth() + 1).toString().padStart(2, '0') + '/' + date.getDate().toString().padStart(2, '0') + '/' + date.getFullYear().toString().slice(-2);
+        } else {
+          const safe = dateStr.replace(' ', 'T');
+          const d = new Date(safe);
+          if (!isNaN(d.getTime())) {
+            dateStr = (d.getMonth() + 1).toString().padStart(2, '0') + '/' + d.getDate().toString().padStart(2, '0') + '/' + d.getFullYear().toString().slice(-2);
+          }
+        }
+
+        const game = games.find(g => g.titleId === titleId)
+                  || { titleId, titleName: item.titleName || 'Unknown Title' };
+        const name = displayName_act(game);
+        const iconUrl = '/appdb/icon?id=' + encodeURIComponent(titleId);
+
+        const hltb = await hltbFetch(name);
+        let hltbHtml = '';
+        if (hltb.main > 0) {
+          let p = parseFloat(hours);
+          let targetSec = hltb.main;
+          let text = 'HLTB (MAIN)', status = '', badgeClass = '';
+          let targetHrs = targetSec / 3600;
+
+          if (p <= targetHrs) {
+            if ((p / targetHrs) < 0.1) { status = 'JUST STARTED'; badgeClass = 'badge-started'; }
+            else                       { status = 'ON TRACK';     badgeClass = 'badge-track'; }
+          } else if (hltb.extras > 0 && p <= hltb.extras / 3600) {
+            targetSec = hltb.extras; targetHrs = hltb.extras / 3600;
+            text = 'HLTB (EXTRA)'; status = 'ON TRACK'; badgeClass = 'badge-track';
+          } else if (hltb.hundo > 0 && p <= hltb.hundo / 3600) {
+            targetSec = hltb.hundo; targetHrs = hltb.hundo / 3600;
+            text = 'HLTB (COMPLETIONIST)'; status = 'ON TRACK'; badgeClass = 'badge-track';
+          } else {
+            targetSec = hltb.hundo || hltb.main;
+            targetHrs = targetSec / 3600;
+            text = 'HLTB (COMPLETIONIST)'; status = 'FINISHED!'; badgeClass = 'badge-finished';
+          }
+          const displayTime = formatHltbTime(targetSec);
+          let pct = targetHrs > 0 ? (p / targetHrs) * 100 : 0;
+          if (pct > 100) pct = 100;
+
+          hltbHtml =
+            '<div class="hltb-container">' +
+              '<div class="hltb-header">' +
+                '<span class="hltb-title">' + text + ': ' + displayTime + '</span>' +
+                '<span class="hltb-badge ' + badgeClass + '">' + status + '</span>' +
+              '</div>' +
+              '<div class="hltb-progress-bar">' +
+                '<div class="hltb-progress-fill" style="width:' + pct + '%"></div>' +
+                '<div class="hltb-progress-text">' + Math.round(pct) + '%</div>' +
+              '</div>' +
+            '</div>';
+        }
+
+        return '<div class="recent-card">' +
+          '<div class="recent-card-top">' +
+            '<div class="recent-card-art">' +
+              '<img src="' + iconUrl + '" alt="" onerror="this.parentElement.innerHTML=\'<div class=fallback>' + initials_act(name) + '</div>\'" />' +
+            '</div>' +
+            '<div class="recent-card-info">' +
+              '<div class="rc-name">' + name + '</div>' +
+              '<div class="rc-time">Total Playtime: ' + hours + ' hrs</div>' +
+              (lastSessionHrs
+                ? '<div class="rc-time" style="opacity:0.78;">Last session: ' + lastSessionHrs + '</div>'
+                : '') +
+              '<div class="rc-date">Last played ' + dateStr + '</div>' +
+            '</div>' +
+          '</div>' +
+          hltbHtml +
+        '</div>';
+      }));
+      container.innerHTML = cardsHtml.join('');
+    } catch (_) {
+      container.innerHTML = '<div style="grid-column:1/-1; padding:20px; text-align:center; color:var(--fg-1);">Failed to load recent activity</div>';
+    }
+  }
+
+  /* ---------- Section 2: Game Activity Detail ---------- */
+  function renderActivityList(filter) {
+    const container = document.getElementById('activity-list-items');
+    if (!container) return;
+    const q = (filter || '').toLowerCase();
+    const filtered = activityGames.filter(g => {
+      const name = displayName_act(g).toLowerCase();
+      return name.includes(q) || g.titleId.toLowerCase().includes(q);
+    });
+    if (!filtered.length) {
+      container.innerHTML = '<div style="padding:20px; text-align:center; color:var(--fg-1); font-size:13px;">No games found</div>';
+      return;
+    }
+    container.innerHTML = filtered.map(g => {
+      const active = activitySelected && activitySelected.titleId === g.titleId ? ' active' : '';
+      const name = displayName_act(g);
+      const iconUrl = '/appdb/icon?id=' + encodeURIComponent(g.titleId);
+      return '<div class="activity-game-item' + active + '" data-id="' + g.titleId + '" style="display:flex; align-items:center; gap:10px;">' +
+        '<img src="' + iconUrl + '" style="width:28px; height:28px; border-radius:4px; object-fit:cover; flex-shrink:0;" onerror="this.style.display=\'none\'" />' +
+        '<div style="min-width:0;">' +
+          '<div class="game-name" style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">' + name + '</div>' +
+          '<div class="game-id">' + g.titleId + '</div>' +
+        '</div>' +
+      '</div>';
+    }).join('');
+    container.querySelectorAll('.activity-game-item').forEach(el => {
+      el.addEventListener('click', () => {
+        const id = el.getAttribute('data-id');
+        const game = activityGames.find(g => g.titleId === id);
+        if (game) selectActivityGame(game);
+      });
+    });
+  }
+
+  /* Bucket session rows into chart points based on the selected period.
+     Local time throughout — sl2_log.db stamps are local-zone, so the
+     bucket key has to be too. (See v1.2.1 timezone fix.) */
+  function generateChartData(period, sessions) {
+    const now = new Date();
+    const pts = [];
+    if (period === 'week') {
+      const days = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+      const dailyMap = {};
+      sessions.forEach(s => {
+        const sd = new Date(s.date);
+        const y = sd.getFullYear();
+        const m = (sd.getMonth() + 1).toString().padStart(2, '0');
+        const d = sd.getDate().toString().padStart(2, '0');
+        const key = y + '-' + m + '-' + d;
+        if (!dailyMap[key]) dailyMap[key] = { dateObj: sd, sec: 0 };
+        dailyMap[key].sec += s.totalFgTime;
+      });
+      const sortedKeys = Object.keys(dailyMap).sort();
+      const last7Keys = sortedKeys.slice(-7);
+      last7Keys.forEach(k => {
+        const obj = dailyMap[k];
+        const mm = obj.dateObj.getMonth() + 1;
+        const dd = obj.dateObj.getDate();
+        pts.push({
+          label: days[obj.dateObj.getDay()] + ' ' + mm + '/' + dd,
+          hrs: +(obj.sec / 3600).toFixed(1)
+        });
+      });
+    } else if (period === 'month') {
+      for (let i = 29; i >= 0; i--) {
+        const d = new Date(now);
+        d.setDate(d.getDate() - i);
+        let sec = 0;
+        sessions.forEach(s => {
+          const sd = new Date(s.date);
+          if (sd.getFullYear() === d.getFullYear() && sd.getMonth() === d.getMonth() && sd.getDate() === d.getDate()) {
+            sec += s.totalFgTime;
+          }
+        });
+        const mm = d.getMonth() + 1;
+        const dd = d.getDate();
+        const isWeekend = (d.getDay() === 0 || d.getDay() === 6);
+        pts.push({
+          label: mm + '/' + dd,
+          hrs: +(sec / 3600).toFixed(1),
+          isWeekend: isWeekend
+        });
+      }
+    } else {
+      const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+      for (let i = 0; i < 12; i++) {
+        let sec = 0;
+        sessions.forEach(s => {
+          const sd = new Date(s.date);
+          if (sd.getFullYear() === now.getFullYear() && sd.getMonth() === i) {
+            sec += s.totalFgTime;
+          }
+        });
+        pts.push({
+          label: months[i],
+          hrs: +(sec / 3600).toFixed(1)
+        });
+      }
+    }
+    return pts;
+  }
+
+  function renderChartBars(pts) {
+    const maxHrs = Math.max(...pts.map(p => p.hrs), 0.5);
+    const isMonthView = pts.length === 30;
+    return pts.map((p, idx) => {
+      const pct = maxHrs > 0 ? (p.hrs / maxHrs * 100) : 0;
+      const bgStyle = p.isWeekend ? 'background:#ff6b6b;' : '';
+      const labelHtml = (isMonthView && (idx % 2 !== 0)) ? '' : p.label;
+      return '<div class="chart-bar-col">' +
+        '<div class="chart-bar-value">' + (p.hrs > 0 ? p.hrs + 'h' : '-') + '</div>' +
+        '<div class="chart-bar" style="height:' + Math.max(pct, 1.5) + '%;' + bgStyle + '"></div>' +
+        '<div class="chart-bar-label">' + labelHtml + '</div>' +
+        '</div>';
+    }).join('');
+  }
+
+  async function selectActivityGame(game) {
+    activitySelected = game;
+    const actDetails = document.getElementById('activity-details');
+    const actSearch  = document.getElementById('activity-search');
+    renderActivityList(actSearch ? actSearch.value : '');
+
+    if (!actDetails) return;
+    const name = game.titleName || game.titleId || '';
+
+    // HLTB enabled check
+    const hltbEnabled = localStorage.getItem('sonic_hltb') === '1' &&
+                    !!localStorage.getItem('sonic_hltb_mirror');
+    const hltbPlaceholder = hltbEnabled
+  ? '<div id="hltb-detail-block" style="margin-top:18px;">' +
+      '<div style="font-size:11px;color:var(--fg-1);opacity:0.6;">Loading HLTB data\u2026</div>' +
+    '</div>'
+  : '';
+
+    const contentHtml =
+  '<div style="text-align:center; margin-bottom:24px;">' +
+    '<div class="activity-detail-title" style="font-size:24px;">' + name + '</div>' +
+    '<div class="activity-detail-id" style="font-size:12px; margin-bottom:0;">' + game.titleId + '</div>' +
+  '</div>' +
+  '<div style="display:grid; grid-template-columns:1fr 1.6fr; gap:24px;">' +
+    '<div>' +
+      '<div class="activity-total-time" style="margin-bottom:0px; display:flex; justify-content:space-between; align-items:center;">' +
+        '<span>Total time played: <strong><span id="act-total-hrs">...</span> hours</strong></span>' +
+        (hltbEnabled ? '<span id="toggle-extra-details-btn" style="font-size:11px; font-weight:600; color:var(--accent); cursor:pointer;">Show more \u25bc</span>' : '') +
+      '</div>' +
+      '<div id="activity-extra-details-container"></div>' +
+      hltbPlaceholder +
+    '</div>' +
+    '<div>' +
+      '<div class="activity-chart" style="margin-top:0;">' +
+        '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">' +
+          '<h3 style="margin:0;">Activity</h3>' +
+          '<div class="chart-period-btns">' +
+            '<button class="chart-period-btn active" data-period="week">Last 7 Plays</button>' +
+            '<button class="chart-period-btn" data-period="month">Month</button>' +
+            '<button class="chart-period-btn" data-period="year">Year</button>' +
+          '</div>' +
+        '</div>' +
+        '<div id="chart-bars-container" class="chart-bars" style="height:220px;"><div style="color:var(--fg-1);opacity:0.6;font-size:12px;padding:20px;">Fetching from sl2_log...</div></div>' +
+      '</div>' +
+    '</div>' +
+  '</div>';
+
+    actDetails.innerHTML =
+  '<div class="activity-details-content">' + contentHtml + '</div>';
+
+    let currentPeriod = 'week';
+    let fetchedSessions = [];
+
+    // Async: HLTB fetch promise setup (start fetching immediately)
+    const hltbPromise = hltbEnabled ? hltbFetch(name).catch(() => null) : Promise.resolve(null);
+
+    // Async: Fetch real data from backend
+    const dropdown = document.getElementById('user-dropdown');
+    const activeTable = dropdown && dropdown.selectedIndex >= 0 ? dropdown.options[dropdown.selectedIndex].dataset.table : '';
+    fetch('/api/activitydb/game?titleId=' + encodeURIComponent(game.titleId) + '&table=' + encodeURIComponent(activeTable))
+  .then(r => r.json())
+  .then(data => {
+    const allSessions = (data.ok && data.sessions) ? data.sessions : [];
+    fetchedSessions = allSessions.filter(s => s.totalFgTime > 0);
+    const totalSec = fetchedSessions.reduce((sum, s) => sum + s.totalFgTime, 0);
+    const tHrs = +(totalSec / 3600).toFixed(1);
+    const thSpan = actDetails.querySelector('#act-total-hrs');
+    if (thSpan) thSpan.textContent = tHrs;
+
+    // Extra details — use all sessions for launch count
+    const totalLaunches = allSessions.length;
+    const extraContainer = actDetails.querySelector('#activity-extra-details-container');
+    if (extraContainer) {
+      const dateOpts = { month:'short', day:'2-digit', year:'numeric' };
+      const installDateStr = data.installTime ? new Date(data.installTime).toLocaleDateString('en-US', dateOpts) : 'Unknown';
+      const lastPlayedStr = data.lastPlayedDate ? new Date(data.lastPlayedDate).toLocaleDateString('en-US', dateOpts) : 'Unknown';
+
+      // Game crashes: count unique crash dates from backend data
+      const totalCrashes = data.crashCount !== undefined ? data.crashCount : (game.totalCrashes || 0);
+
+      extraContainer.innerHTML =
+        '<div id="activity-extra-details" style="' + (hltbEnabled ? 'display:none;' : '') + ' margin-top:12px; padding:12px; background:rgba(255,255,255,0.03); border-radius:8px;">' +
+          '<table style="width:100%; font-size:12px; color:var(--fg-1); border-collapse:collapse;">' +
+            '<tr><td style="padding:4px 0;">Total times launched</td><td style="padding:4px 0; text-align:right; font-weight:700; color:var(--fg-0);">' + totalLaunches + '</td></tr>' +
+            '<tr><td style="padding:4px 0;">Installed On</td><td style="padding:4px 0; text-align:right; font-weight:700; color:var(--fg-0);">' + installDateStr + '</td></tr>' +
+            '<tr><td style="padding:4px 0;">Last Played</td><td style="padding:4px 0; text-align:right; font-weight:700; color:var(--fg-0);">' + lastPlayedStr + '</td></tr>' +
+          '</table>' +
+        '</div>';
+
+      if (hltbEnabled) {
+        const toggleBtn = actDetails.querySelector('#toggle-extra-details-btn');
+        if (toggleBtn) {
+          toggleBtn.addEventListener('click', () => {
+            const detailsDiv = extraContainer.querySelector('#activity-extra-details');
+            const hltbBlock = actDetails.querySelector('#hltb-detail-block');
+            if (detailsDiv.style.display === 'none') {
+              detailsDiv.style.display = 'block';
+              if (hltbBlock) hltbBlock.style.display = 'none';
+              toggleBtn.textContent = 'Show less \u25b2';
+            } else {
+              detailsDiv.style.display = 'none';
+              if (hltbBlock) hltbBlock.style.display = 'block';
+              toggleBtn.textContent = 'Show more \u25bc';
+            }
+          });
+        }
+      }
+    }
+
+    const container = actDetails.querySelector('#chart-bars-container');
+    if (container) container.innerHTML = renderChartBars(generateChartData(currentPeriod, fetchedSessions));
+
+    // Now handle HLTB rendering using the resolved hltbPromise and calculated tHrs
+    if (hltbEnabled) {
+      hltbPromise.then(hltb => {
+        const block = actDetails.querySelector('#hltb-detail-block');
+        if (!block) return;
+        if (!hltb || !hltb.hit || !hltb.main) {
+          block.innerHTML = '<div style="font-size:11px;color:var(--fg-1);opacity:0.5;">No HLTB data found for this title.</div>';
+          return;
+        }
+
+        const userHrs = tHrs;
+        const mainHrs = hltb.main / 3600;
+        const extraHrs = hltb.extras / 3600;
+        const compHrs = hltb.hundo / 3600;
+
+        const userPct = Math.min((userHrs / Math.max(compHrs, 1)) * 100, 100);
+        const displayPct = Math.round((userHrs / Math.max(compHrs, 1)) * 100);
+
+        const pBarHtml =
+          '<div style="position:relative; width:100%; height:16px; background:rgba(0,0,0,0.5); border-radius:8px; margin:12px 0; overflow:hidden;">' +
+            '<div style="position:absolute; left:0; top:0; bottom:0; width:' + userPct + '%; background:var(--accent); border-radius:8px; display:flex; align-items:center; justify-content:flex-end; padding-right:6px;">' +
+              '<span style="color:#000; font-size:10px; font-weight:800;">' + displayPct + '%</span>' +
+            '</div>' +
+          '</div>';
+
+        const dynamicTrophy = (isGold) => {
+          const color = isGold ? '#ffd700' : 'currentColor';
+          const opac = isGold ? '1' : '0.5';
+          return '<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" ' +
+            'style="width:22px;height:22px;display:block;margin:0 auto 6px;opacity:' + opac + ';color:' + color + ';">' +
+            '<path d="M7 3H17V13C17 15.76 14.76 18 12 18C9.24 18 7 15.76 7 13V3Z" ' +
+            'stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>' +
+            '<path d="M7 6H4C4 6 3 10 7 11" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>' +
+            '<path d="M17 6H20C20 6 21 10 17 11" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>' +
+            '<path d="M12 18V21" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>' +
+            '<path d="M8 21H16" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>' +
+            '</svg>';
+        };
+
+        const statBox = (label, sec, isGold) => {
+          const t = formatHltbTime(sec);
+          return '<div style="flex:1;background:rgba(0,0,0,0.35);border:1px solid rgba(255,255,255,0.06);' +
+            'padding:10px 8px 8px;border-radius:8px;text-align:center;">' +
+            '<div style="color:var(--fg-1);">' + dynamicTrophy(isGold) + '</div>' +
+            '<div style="font-size:10px;color:var(--fg-1);text-transform:uppercase;font-weight:700;margin-bottom:4px;">' + label + '</div>' +
+            '<div style="font-size:15px;font-weight:700;color:var(--accent);">' + t + '</div>' +
+            '</div>';
+        };
+
+        const safeName = name.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+        block.innerHTML =
+          '<div class="hltb-container" style="margin-top:4px;">' +
+            '<div style="display:flex;align-items:center;justify-content:space-between;font-size:14px;font-weight:600;color:var(--fg-1);margin-bottom:8px;">' +
+              '<div style="display:flex;align-items:center;">' +
+                '<img src="https://howlongtobeat.com/img/hltb_brand2.png" style="height:18px;margin-right:6px;" alt="">' +
+                'How Long To Beat Stats' +
+              '</div>' +
+              '<button onclick="hltbCacheFlushGame(\'' + safeName + '\')" style="background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.12); color:var(--fg-1); font-size:10px; padding:3px 8px; border-radius:4px; cursor:pointer; transition:all 0.2s;">Refresh</button>' +
+            '</div>' +
+            pBarHtml +
+            '<div style="display:flex;gap:8px;">' +
+              statBox('Main Story', hltb.main, userHrs >= mainHrs) +
+              statBox('Extra', hltb.extras, userHrs >= extraHrs) +
+              statBox('100%', hltb.hundo, userHrs >= compHrs) +
+            '</div>' +
+          '</div>';
+      });
+    }
+  })
+  .catch(() => {
+    const container = actDetails.querySelector('#chart-bars-container');
+    if (container) container.innerHTML = '<div style="color:var(--accent);font-size:12px;">Failed to load sl2_log data</div>';
+  });
+
+    // Wire period filter buttons
+    actDetails.querySelectorAll('.chart-period-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    actDetails.querySelectorAll('.chart-period-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    currentPeriod = btn.dataset.period;
+    const container = actDetails.querySelector('#chart-bars-container');
+    if (container) container.innerHTML = renderChartBars(generateChartData(currentPeriod, fetchedSessions));
+  });
+    });
+
+    // Async: pic0 background
+    actDetails.style.background = '';
+    const pic0Url = '/appdb/pic0?id=' + encodeURIComponent(game.titleId);
+    const img = new Image();
+    img.onload = () => {
+  actDetails.style.background =
+    'linear-gradient(to bottom,' +
+      'rgba(5,9,19,0.92) 0%,' +
+      'rgba(5,9,19,0.76) 20%,' +
+      'rgba(5,9,19,0.76) 80%,' +
+      'rgba(5,9,19,0.92) 100%),' +
+    'url("' + pic0Url + '") center/cover no-repeat';
+    };
+    img.onerror = () => { actDetails.style.background = ''; };
+    img.src = pic0Url;
+  }
+
+  /* ---------- Section 3: Year in Review ---------- */
+  function createYirCard(label, title, desc, titleId) {
+    if (!titleId) return '';
+    const iconUrl = '/appdb/icon?id=' + encodeURIComponent(titleId);
+    return '<div class="yir-card"><div class="yir-card-icon"><img src="' + iconUrl + '" onerror="this.parentElement.innerHTML=\'<div class=fallback>' + initials_act(title) + '</div>\'"/></div>' +
+      '<div class="yir-card-body"><div class="yir-card-label">' + label + '</div><div class="yir-card-title">' + title + '</div><div class="yir-card-stat">' + desc + '</div></div></div>';
+  }
+  function renderYearInReview(games) {
+    const ys = document.getElementById('yir-year-select');
+    if (!ys) return;
+    ys.innerHTML = '<option value="2026">2026</option><option value="2025">2025</option>';
+
+    const r = [...games].sort(() => Math.random() - 0.5);
+    const a = r[0] || {}, b = r[1] || {}, c = r[2] || {};
+
+    document.getElementById('yir-highlights').innerHTML =
+      createYirCard('Totally Not addicted To', displayName_act(a), 'Most hours logged (' + (Math.random() * 200 + 50).toFixed(0) + ' hrs)', a.titleId) +
+      createYirCard('Just one quick game',     displayName_act(b), 'Most times started (' + (Math.random() * 100 + 20).toFixed(0) + ' sessions)', b.titleId) +
+      createYirCard('I forgot to save',        displayName_act(c), 'Most crashes logged (' + (Math.random() * 15 + 1).toFixed(0) + ' crashes)', c.titleId);
+
+    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    let mHtml = '';
+    for (const m of months) {
+      const v = Math.random() * 100;
+      mHtml += '<div class="yir-month-col"><div class="yir-month-val">' + v.toFixed(0) + '</div><div class="yir-month-bar" style="height:' + Math.max(v, 2) + '%"></div><div class="yir-month-lbl">' + m + '</div></div>';
+    }
+    document.getElementById('yir-monthly').innerHTML = mHtml;
+
+    const pie = document.getElementById('yir-pie');
+    pie.innerHTML = '<div class="yir-pie" style="background: conic-gradient(var(--accent) 0% 45%, #ff4c8b 45% 75%, #ffd64c 75% 90%, #4cffc9 90% 100%);"></div>' +
+      '<div class="yir-pie-legend">' +
+        '<div class="leg-row"><div class="leg-dot" style="background:var(--accent)"></div><div class="leg-name">' + displayName_act(a) + '</div><div class="leg-hrs">45%</div></div>' +
+        '<div class="leg-row"><div class="leg-dot" style="background:#ff4c8b"></div><div class="leg-name">' + displayName_act(b) + '</div><div class="leg-hrs">30%</div></div>' +
+        '<div class="leg-row"><div class="leg-dot" style="background:#ffd64c"></div><div class="leg-name">' + displayName_act(c) + '</div><div class="leg-hrs">15%</div></div>' +
+        '<div class="leg-row"><div class="leg-dot" style="background:#4cffc9"></div><div class="leg-name">Others</div><div class="leg-hrs">10%</div></div>' +
+      '</div>';
+  }
+
+  /* ---------- Section 4: Progress Tracker ---------- */
+  let ptState = [false, false, false, false];
+  function renderProgressTracker(games) {
+    const sel = document.getElementById('pt-game-select');
+    if (!sel) return;
+    sel.innerHTML = games.map(g => '<option value="' + g.titleId + '">' + displayName_act(g) + '</option>').join('');
+    sel.onchange = () => { ptState = [false, false, false, false]; updatePt(); };
+    updatePt();
+  }
+  function updatePt() {
+    const chaps = ['Chapter 1 - Start', 'Chapter 2 - The Mid', 'Chapter 3 - The End', 'Final Chapter'];
+    let html = '', done = 0;
+    chaps.forEach((c, i) => {
+      if (ptState[i]) done++;
+      const cls = ptState[i] ? 'pt-chapter done' : 'pt-chapter';
+      const icon = ptState[i] ? '✓' : '';
+      html += '<div class="' + cls + '" onclick="window.togglePt(' + i + ')"><div class="pt-toggle">' + icon + '</div><div class="pt-name">' + c + '</div></div>';
+    });
+    document.getElementById('pt-chapters').innerHTML = html;
+    const pct = (done / 4) * 100;
+    document.getElementById('pt-fill').style.width = pct + '%';
+    document.getElementById('pt-pct').innerText = pct.toFixed(0) + '%';
+  }
+  window.togglePt = function (i) { ptState[i] = !ptState[i]; updatePt(); };
+
+  /* ---------- Users ---------- */
+  async function loadUsers() {
+    const dd = document.getElementById('user-dropdown');
+    const display = document.getElementById('user-profile-display');
+    try {
+      const r = await fetch('/api/activitydb/users');
+      sysUsers = (await r.json()) || [];
+      if (!sysUsers.length) {
+        dd.innerHTML = '<option value="">No users found</option>';
+        display.innerHTML = '<div style="color:var(--fg-1);">No profiles</div>';
+        return;
+      }
+      dd.innerHTML = sysUsers.map(u => '<option value="' + u.id + '">' + u.name + '</option>').join('');
+      dd.onchange = (e) => {
+        const u = sysUsers.find(x => x.id === e.target.value);
+        if (u) selectUser(u);
+      };
+      selectUser(sysUsers[0]);
+    } catch (_) {
+      dd.innerHTML = '<option value="">Error loading users</option>';
+    }
+  }
+  function selectUser(u) {
+    sysCurrentUser = u;
+    const display = document.getElementById('user-profile-display');
+    display.style.display = '';
+    display.innerHTML = '<img src="/api/activitydb/avatar?id=' + encodeURIComponent(u.id) + '" onerror="this.src=\'\'" />' +
+                        '<div class="user-name">' + u.name + '</div>';
+    renderRecentlyPlayed(activityGames);
+  }
+
+  /* ---------- Master loader ---------- */
+  async function loadActivityPanel() {
+    const listItems = document.getElementById('activity-list-items');
+    if (listItems) {
+      listItems.innerHTML = '<div class="loading" style="padding:30px;"><span class="spinner"></span> Loading…</div>';
+    }
+    try {
+      const r = await fetch('/appdb');
+      const d = await r.json();
+      activityGames = d.titles || [];
+      await loadUsers();
+      renderActivityList('');
+      if (activityGames.length) selectActivityGame(activityGames[0]);
+      renderYearInReview(activityGames);
+      renderProgressTracker(activityGames);
+    } catch (e) {
+      if (listItems) listItems.innerHTML = '<div class="error" style="padding:20px;">Failed to load: ' + e.message + '</div>';
+      const rp = document.getElementById('recent-played-cards');
+      if (rp) rp.innerHTML = '<div style="grid-column:1/-1;" class="error">Failed to load</div>';
+    }
+  }
+
+  /* ---------- HLTB Settings card wiring ----------
+     HLTB config moved out of the Activity panel into Settings →
+     "⏱ How Long To Beat (HLTB)" in 1.5.0. New input IDs:
+       #hltb-toggle        on/off switch (unchanged)
+       #hltb-state         "On"/"Off" badge (unchanged)
+       #hltb-mirror-row    proxy URL row, hidden when toggle is off
+       #hltb-mirror-input  root URL of the Vercel proxy
+       #hltb-mirror-save   commits the URL (Enter also commits)
+     Stored URL is whatever the user typed; if they type a root URL
+     without a path, we append "api/search" when actually fetching. */
+  function initHltbSettings() {
+    const t = document.getElementById('hltb-toggle');
+    const s = document.getElementById('hltb-state');
+    const m = document.getElementById('hltb-mirror-input');
+    const r = document.getElementById('hltb-mirror-row');
+    const save = document.getElementById('hltb-mirror-save');
+    if (!t || !s || !m || !r || !save) return;
+
+    const isEnabled = localStorage.getItem('sonic_hltb') === '1';
+    t.checked = isEnabled;
+    s.textContent = isEnabled ? 'On' : 'Off';
+    s.className = 'switch-state ' + (isEnabled ? 'on' : 'off');
+    r.style.display = isEnabled ? 'block' : 'none';
+
+    const saved = localStorage.getItem('sonic_hltb_mirror');
+    if (saved) m.value = saved;
+
+    t.addEventListener('change', () => {
+      const on = t.checked;
+      localStorage.setItem('sonic_hltb', on ? '1' : '0');
+      s.textContent = on ? 'On' : 'Off';
+      s.className = 'switch-state ' + (on ? 'on' : 'off');
+      r.style.display = on ? 'block' : 'none';
+      hltbCacheFlush();
+      syncHltbRefreshBtn();
+    });
+    function commitUrl() {
+      const v = m.value.trim();
+      if (v) localStorage.setItem('sonic_hltb_mirror', v);
+      else   localStorage.removeItem('sonic_hltb_mirror');
+      hltbCacheFlush();
+      syncHltbRefreshBtn();
+      showToast('HLTB proxy URL saved', 'ok');
+    }
+    save.addEventListener('click', commitUrl);
+    m.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); commitUrl(); }
+    });
+    syncHltbRefreshBtn();
+  }
+
+  /* ---------- Wire up ---------- */
+  initHltbSettings();
+  document.getElementById('activity-search')?.addEventListener('input', (e) => {
+    renderActivityList(e.target.value);
+  });
+
+  function setOpen(open) {
+    panel.classList.toggle('open', open);
+    panel.setAttribute('aria-hidden', String(!open));
+    if (home) home.style.display = open ? 'none' : '';
+    if (spot) spot.style.display = open ? 'none' : '';
+    if (open && settingsPanel) {
+      settingsPanel.classList.remove('open');
+      settingsPanel.setAttribute('aria-hidden', 'true');
+    }
+    if (open && !loaded) { loaded = true; loadActivityPanel(); }
+  }
+
+  btn.addEventListener('click', (e) => {
+    e.preventDefault();
+    setOpen(!panel.classList.contains('open'));
+  });
+
+  /* When the user clicks any of the page-nav anchors while the
+     Activity panel is open, close the panel first so we don't leave
+     the launcher in an inconsistent open-overlay state if the user
+     hits Back. Then force a cache-busting query param so PS5
+     WebKit can't serve a stale HTTP/bf-cached page — field reports
+     showed Homebrew + ELF Loader both landing on the previously-
+     visited /elfldr "Payload launcher" view even after v1.5.3 added
+     `Cache-Control: no-store`, because the in-app browser's bfcache
+     honors the cached view regardless of cache headers. A unique
+     `?_=<ts>` per click makes the URL un-cacheable end-to-end. The
+     server ignores the `_` query param. */
+  document.querySelectorAll('.header-nav a[href^="/"], .header-nav a#savemgr-tab').forEach(a => {
+    a.addEventListener('click', (e) => {
+      if (panel.classList.contains('open')) setOpen(false);
+      if (a.target === '_blank') return;
+      const href = a.getAttribute('href');
+      if (!href || href.startsWith('#')) return;
+      e.preventDefault();
+      const sep = href.includes('?') ? '&' : '?';
+      window.location.href = href + sep + '_=' + Date.now();
+    });
+  });
+})();
+
+/* If the PS5 in-app browser restores this page from bfcache (back/
+   forward navigation), force a fresh load. event.persisted is true
+   only when the page came out of bfcache. */
+window.addEventListener('pageshow', (e) => {
+  if (e.persisted) window.location.reload();
+});
+
+/* ──────────────────────────────────────────────────────────────────
+   Notifications inbox — polls /api/notifications every 4 s, drives
+   the bell badge + drawer. Mark-read and clear hit the same endpoint
+   with method=POST and an action. */
+(function notifBoot() {
+  const bell    = document.getElementById('notif-bell');
+  const badge   = document.getElementById('notif-badge');
+  const drawer  = document.getElementById('notif-drawer');
+  const list    = document.getElementById('notif-list');
+  const markBtn = document.getElementById('notif-mark-read');
+  const clearBtn = document.getElementById('notif-clear');
+  if (!bell || !drawer) return;
+
+  let cache = { items: [], unread: 0 };
+
+  function render() {
+    if (!cache.items.length) {
+      list.innerHTML = '<div class="empty">No notifications yet.</div>';
+    } else {
+      list.innerHTML = cache.items.slice().reverse().map(n => {
+        const ts = n.ts ? new Date(n.ts * 1000).toLocaleTimeString() : '';
+        const msg = (n.msg || '').replace(/[<>&]/g,
+          c => ({ '<':'&lt;','>':'&gt;','&':'&amp;' }[c]));
+        return '<div class="item">' +
+                 '<div class="ts">' + ts + (n.read ? '' : ' • new') + '</div>' +
+                 '<div>' + msg + '</div>' +
+               '</div>';
+      }).join('');
+    }
+    if (cache.unread > 0) {
+      badge.textContent = cache.unread > 99 ? '99+' : String(cache.unread);
+      badge.setAttribute('data-unread', '');
+    } else {
+      badge.removeAttribute('data-unread');
+    }
+  }
+
+  async function poll() {
+    try {
+      const r = await fetch('/api/notifications', { cache: 'no-store' });
+      if (r.ok) { cache = await r.json(); render(); }
+    } catch (_) {}
+  }
+
+  bell.addEventListener('click', () => {
+    if (drawer.hasAttribute('data-open')) drawer.removeAttribute('data-open');
+    else drawer.setAttribute('data-open', '');
+  });
+  document.addEventListener('click', (e) => {
+    if (drawer.hasAttribute('data-open') &&
+        !drawer.contains(e.target) && !bell.contains(e.target)) {
+      drawer.removeAttribute('data-open');
+    }
+  });
+
+  markBtn?.addEventListener('click', async () => {
+    await fetch('/api/notifications/read', { method: 'POST' });
+    poll();
+  });
+  clearBtn?.addEventListener('click', async () => {
+    await fetch('/api/notifications/clear', { method: 'POST' });
+    poll();
+  });
+
+  poll();
+  setInterval(poll, 4000);
 })();
 </script>
 </body>

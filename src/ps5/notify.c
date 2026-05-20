@@ -18,6 +18,8 @@ along with this program; see the file COPYING. If not, see
 #include <string.h>
 #include <stdarg.h>
 
+#include "../notif_inbox.h"
+
 
 typedef struct notify_request {
   char useless1[45];
@@ -39,4 +41,8 @@ notify(const char *fmt, ...) {
   va_end(args);
 
   sceKernelSendNotificationRequest(0, &req, sizeof req, 0);
+
+  /* Mirror to the in-process inbox so the launcher's bell can show
+     a history. The toast above already fired. */
+  notif_inbox_push(req.message);
 }

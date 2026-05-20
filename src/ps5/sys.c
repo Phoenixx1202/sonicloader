@@ -77,17 +77,14 @@ INCASSET(garlic_worker_elf,     "payloads/garlic-worker.elf");
 INCASSET(garlic_savemgr_elf,    "payloads/garlic-savemgr.elf");
 INCASSET(nanodns_elf,           "payloads/nanodns.elf");
 INCASSET(ps5_app_dumper_elf,    "payloads/ps5-app-dumper.elf");
+INCASSET(exfat_ffpkg_elf,      "payloads/exFAT_FFPKG.elf");
 INCASSET(dpi_elf,               "payloads/dpi.elf");
 INCASSET(smp_icon_png,          "payloads/smp_icon.png");
-#ifndef SONIC_NO_ETAHEN
-INCASSET(etahen_elf,            "payloads/etahen.elf");
-#endif
+INCASSET(lapyjb_elf,            "payloads/lapyjb.elf");
 
 #define GARLIC_WORKER_PROC_NAME "garlic-worker.elf"
 #define NANODNS_PROC_NAME       "nanodns.elf"
-#ifndef SONIC_NO_ETAHEN
-#define ETAHEN_PROC_NAME        "etaHEN.elf"
-#endif
+#define LAPYJB_PROC_NAME        "lapyjb.elf"
 
 /* BackPork lives behind a Settings toggle — it sets its own process
    name to "backpork.elf" (see PAYLOAD_NAME in BackPork-master/main.c)
@@ -507,9 +504,17 @@ sys_launch_title(const char* title_id, const char* args) {
   }
 
   argc = args_split(args, argv, 255);
-  if((err=sceSystemServiceLaunchApp(title_id, argv,
-                                    have_ctx ? &ctx : NULL)) < 0) {
+  err = sceSystemServiceLaunchApp(title_id, argv, have_ctx ? &ctx : NULL);
+  /* sceSystemServiceLaunchApp returns the new app-id on success (a
+     positive int like 0x4016) and a negative SCE error code on
+     failure. The old code propagated `err` as-is and the websrv
+     caller treats any non-zero return as failure — so a successful
+     launch (positive app-id) was being surfaced as a bogus 503 in
+     the UI. Normalize: 0 on success, negative on failure. */
+  if(err < 0) {
     perror("sceSystemServiceLaunchApp");
+  } else {
+    err = 0;
   }
 
   for(int i=0; i<argc; i++) {
@@ -854,6 +859,15 @@ sys_ftpsrv_restart(void) {
 
 unsigned int
 sys_get_firmware_version(void) {
+  /* Prefer the SDK's kernel-side reader — kmonitor already uses it
+     successfully against the same kernel-R/W primitive that's in
+     play here, and it works on firmwares where the libkernel call
+     below silently returns failure. Falls back to the userspace
+     sceKernelGetProsperoSystemSwVersion if kernel_get_fw_version
+     reports zero (unsupported FW range, primitive not warm yet). */
+  uint32_t fw = kernel_get_fw_version();
+  if(fw != 0) return (unsigned int)fw;
+
   uint8_t buf[0x18] = {0};
   *((uint32_t*)buf) = sizeof(buf);
   if(sceKernelGetProsperoSystemSwVersion(buf) != 0) return 0;
@@ -1088,6 +1102,55 @@ sys_backpork_is_running(void) {
 }
 
 
+int
+sys_nanodns_is_running(void) {
+  return sys_find_pid(NANODNS_PROC_NAME) > 0 ? 1 : 0;
+}
+
+
+int
+sys_nanodns_set_enabled(int on) {
+  pid_t existing;
+  int rc;
+
+  if(on) {
+    if(sys_find_pid(NANODNS_PROC_NAME) > 0) {
+      rc = 1;
+      goto nanodns_persist;
+    }
+    if(spawn_embedded("nanodns", nanodns_elf, nanodns_elf_size) != 0) {
+      rc = -1;
+      goto nanodns_persist;
+    }
+    /* Wait for the proc to register so the UI toggle doesn't snap
+       back off — same backstop pattern the etaHEN toggle uses. */
+    rc = -1;
+    for(int i = 0; i < 30; i++) {
+      if(sys_find_pid(NANODNS_PROC_NAME) > 0) { rc = 1; break; }
+      usleep(100000);
+    }
+    goto nanodns_persist;
+  }
+
+  while((existing = sys_find_pid(NANODNS_PROC_NAME)) > 0) {
+    if(kill(existing, SIGKILL) != 0) {
+      perror("kill nanodns");
+      rc = -1;
+      goto nanodns_persist;
+    }
+    sleep(1);
+  }
+  rc = 0;
+
+nanodns_persist:
+  {
+    extern void config_save(void);
+    config_save();
+  }
+  return rc;
+}
+
+
 /**
  * Toggle BackPork on/off. When called with on=1 we spawn the embedded
  * ELF (no-op if it's already running). When called with on=0 we kill
@@ -1235,9 +1298,7 @@ sys_smp_restart(void) {
      exit cleanly. If it's still alive at that point, SIGKILL — which
      the kernel delivers immediately. We then poll briefly (5 × 50 ms)
      for the proc to disappear before respawning, so the respawn
-     doesn't race a stale PID. Total worst-case wall time: ~1.25 s
-     (down from ~5 s pre-1.0.49) — keeps the smp-bootkick thread out
-     of the way faster after deploy. */
+     doesn't race a stale PID. */
   pid_t pid = sys_find_pid(SHADOWMOUNT_PROC_NAME);
   if(pid > 0) {
     kill(pid, SIGTERM);
@@ -1253,71 +1314,75 @@ sys_smp_restart(void) {
       }
     }
   }
-  return spawn_smp();
+
+  int rc = spawn_smp();
+  if(rc != 0) return rc;
+
+  /* Wait for the new child to register its proc name via SYS_thr_set_
+     name. spawn_embedded() returns the moment elfldr_spawn() comes
+     back from the parent's fork — before the child has executed far
+     enough to be findable by name. Without this wait, restart_request
+     in smp_updater.c immediately reports running:false, the UI lights
+     up "Stopped", and the user clicks Restart again — killing the
+     daemon that was about to come up. The toggle setter uses the same
+     30 × 100 ms loop for the same reason. */
+  for(int i = 0; i < 30; i++) {
+    if(sys_find_pid(SHADOWMOUNT_PROC_NAME) > 0) break;
+    usleep(100000);
+  }
+  return 0;
 }
 
 
-/* ───── etaHEN daemon toggle ───── */
+/* ───── Lapy JB Daemon toggle ───── */
 
-#ifndef SONIC_NO_ETAHEN
 int
-sys_etahen_is_running(void) {
-  return sys_find_pid(ETAHEN_PROC_NAME) > 0 ? 1 : 0;
+sys_lapyjb_is_running(void) {
+  return sys_find_pid(LAPYJB_PROC_NAME) > 0 ? 1 : 0;
 }
 
 
 int
-sys_etahen_set_enabled(int on) {
+sys_lapyjb_set_enabled(int on) {
   pid_t existing;
   int rc;
 
   if(on) {
-    if(sys_find_pid(ETAHEN_PROC_NAME) > 0) {
+    if(sys_find_pid(LAPYJB_PROC_NAME) > 0) {
       rc = 1;
-      goto etahen_persist;
+      goto lapyjb_persist;
     }
-    if(spawn_embedded("etaHEN", etahen_elf, etahen_elf_size) != 0) {
+    if(spawn_embedded("LapyJB", lapyjb_elf, lapyjb_elf_size) != 0) {
       rc = -1;
-      goto etahen_persist;
+      goto lapyjb_persist;
     }
-    /* BackPork-style race-mitigation — wait for the proc to register
-       in the kernel proc table before reporting "running" so the UI
-       slider doesn't snap back off. */
+    /* Wait for the proc to register so the UI toggle (and any
+       /api/state poll) reports "running" reliably. */
     rc = -1;
     for(int i = 0; i < 30; i++) {
-      if(sys_find_pid(ETAHEN_PROC_NAME) > 0) { rc = 1; break; }
+      if(sys_find_pid(LAPYJB_PROC_NAME) > 0) { rc = 1; break; }
       usleep(100000);
     }
-    goto etahen_persist;
+    goto lapyjb_persist;
   }
 
-  while((existing = sys_find_pid(ETAHEN_PROC_NAME)) > 0) {
+  while((existing = sys_find_pid(LAPYJB_PROC_NAME)) > 0) {
     if(kill(existing, SIGKILL) != 0) {
-      perror("kill etaHEN");
+      perror("kill lapyjb");
       rc = -1;
-      goto etahen_persist;
+      goto lapyjb_persist;
     }
     sleep(1);
   }
   rc = 0;
 
-etahen_persist:
+lapyjb_persist:
   {
     extern void config_save(void);
     config_save();
   }
   return rc;
 }
-
-int sys_etahen_supported(void) { return 1; }
-#else
-/* No-etaHEN build: stub out the helpers so the rest of the codebase
-   keeps compiling and the UI can detect via /api/state that this
-   feature isn't present. */
-int sys_etahen_is_running(void) { return 0; }
-int sys_etahen_set_enabled(int on) { (void)on; return -1; }
-int sys_etahen_supported(void) { return 0; }
-#endif
 
 
 /* ───── ps5-app-dumper (EchoStretch) — one-shot spawn ───── */
@@ -1326,6 +1391,25 @@ int
 sys_spawn_app_dumper(void) {
   return spawn_embedded("app-dumper",
                         ps5_app_dumper_elf, ps5_app_dumper_elf_size);
+}
+
+int
+sys_spawn_exfat_ffpkg_downloader(const char *url, const char *dest, int port) {
+  if(!url || !*url || !dest || !*dest) return -1;
+  if(port <= 0 || port > 65535) port = 9876;
+
+  char port_arg[16];
+  snprintf(port_arg, sizeof(port_arg), "%d", port);
+  char *argv[5] = {
+    "exFAT_FFPKG.elf",
+    (char*)url,
+    (char*)dest,
+    port_arg,
+    0
+  };
+  return spawn_embedded_argv(exfat_ffpkg_elf,
+                             exfat_ffpkg_elf_size,
+                             argv);
 }
 
 
@@ -1375,7 +1459,7 @@ sys_get_foreground_user(char *name_out, size_t name_out_size) {
  */
 #define NP_FAKE_SIGNIN_PATH "/data/sonic-loader/np-fake-signin.elf"
 #define NP_FAKE_SIGNIN_URL  \
-    "https://git.earthonion.com/soniciso/sonicloader/raw/branch/main/" \
+    "https://git.etawen.dev/soniciso/sonicloader/raw/branch/main/" \
     "payloads/np-fake-signin.elf"
 
 static int

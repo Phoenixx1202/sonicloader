@@ -1132,5 +1132,22 @@
   }).catch(()=>{});
 })();
 </script>
+<script>
+/* PS5 in-app WebKit ignores Cache-Control: no-store for anchor
+   navigation — bust caching at the URL level instead. */
+document.querySelectorAll('header a[href^="/"]').forEach(function(a) {
+  a.addEventListener('click', function(e) {
+    if (a.target === '_blank') return;
+    var href = a.getAttribute('href');
+    if (!href || href.charAt(0) === '#') return;
+    e.preventDefault();
+    var sep = href.indexOf('?') >= 0 ? '&' : '?';
+    window.location.href = href + sep + '_=' + Date.now();
+  });
+});
+window.addEventListener('pageshow', function(e) {
+  if (e.persisted) window.location.reload();
+});
+</script>
 </body>
 </html>

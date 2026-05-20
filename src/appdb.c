@@ -20,6 +20,7 @@
 
 #include "appdb.h"
 #include "ps5/http.h"
+#include "titleid.h"
 #include "websrv.h"
 
 #include "third_party/stb_image.h"
@@ -420,19 +421,31 @@ appdb_list_request(struct MHD_Connection *conn) {
           "       COALESCE(sortPriority,0) AS p "
           "FROM tbl_appbrowse "
           "WHERE titleId IS NOT NULL AND titleId != ''"
-          " AND (titleId LIKE 'CUSA%' OR titleId LIKE 'PPSA%') "
+          " AND substr(titleId,1,4) IN "
+          "  ('CUSA','PPSA',"                             /* PS4, PS5 */
+          "   'ULUS','ULES','ULJS','ULKS',"               /* PSP */
+          "   'SLUS','SCUS','SLES','SCES',"               /* PS1/PS2 */
+          "   'SLPS','SLPM','SCED','SLED','SCPS') "
           "ORDER BY n COLLATE NOCASE, titleId;";
   } else if(has_appbrowse && has_name) {
     sql = "SELECT DISTINCT titleId, COALESCE(titleName,'') AS n, 0 AS p "
           "FROM tbl_appbrowse "
           "WHERE titleId IS NOT NULL AND titleId != ''"
-          " AND (titleId LIKE 'CUSA%' OR titleId LIKE 'PPSA%') "
+          " AND substr(titleId,1,4) IN "
+          "  ('CUSA','PPSA',"                             /* PS4, PS5 */
+          "   'ULUS','ULES','ULJS','ULKS',"               /* PSP */
+          "   'SLUS','SCUS','SLES','SCES',"               /* PS1/PS2 */
+          "   'SLPS','SLPM','SCED','SLED','SCPS') "
           "ORDER BY n COLLATE NOCASE, titleId;";
   } else if(has_appbrowse) {
     sql = "SELECT DISTINCT titleId, '' AS n, 0 AS p "
           "FROM tbl_appbrowse "
           "WHERE titleId IS NOT NULL AND titleId != ''"
-          " AND (titleId LIKE 'CUSA%' OR titleId LIKE 'PPSA%') "
+          " AND substr(titleId,1,4) IN "
+          "  ('CUSA','PPSA',"                             /* PS4, PS5 */
+          "   'ULUS','ULES','ULJS','ULKS',"               /* PSP */
+          "   'SLUS','SCUS','SLES','SCES',"               /* PS1/PS2 */
+          "   'SLPS','SLPM','SCED','SLED','SCPS') "
           "ORDER BY titleId;";
   } else {
     /* tbl_contentinfo fallback. On most firmwares the row carries
@@ -446,13 +459,21 @@ appdb_list_request(struct MHD_Connection *conn) {
       sql = "SELECT DISTINCT titleId, COALESCE(titleName,'') AS n, 0 AS p "
             "FROM tbl_contentinfo "
             "WHERE titleId IS NOT NULL AND titleId != ''"
-            " AND (titleId LIKE 'CUSA%' OR titleId LIKE 'PPSA%') "
+            " AND substr(titleId,1,4) IN "
+          "  ('CUSA','PPSA',"                             /* PS4, PS5 */
+          "   'ULUS','ULES','ULJS','ULKS',"               /* PSP */
+          "   'SLUS','SCUS','SLES','SCES',"               /* PS1/PS2 */
+          "   'SLPS','SLPM','SCED','SLED','SCPS') "
             "ORDER BY n COLLATE NOCASE, titleId;";
     } else {
       sql = "SELECT DISTINCT titleId, '' AS n, 0 AS p "
             "FROM tbl_contentinfo "
             "WHERE titleId IS NOT NULL AND titleId != ''"
-            " AND (titleId LIKE 'CUSA%' OR titleId LIKE 'PPSA%') "
+            " AND substr(titleId,1,4) IN "
+          "  ('CUSA','PPSA',"                             /* PS4, PS5 */
+          "   'ULUS','ULES','ULJS','ULKS',"               /* PSP */
+          "   'SLUS','SCUS','SLES','SCES',"               /* PS1/PS2 */
+          "   'SLPS','SLPM','SCED','SLED','SCPS') "
             "ORDER BY titleId;";
     }
   }
@@ -565,6 +586,76 @@ jpeg_sink_write(void *cls, void *data, int size) {
 }
 
 
+/* Resolve a title's icon0.png path. Some games (notably PS4 / external
+   titles) live under /user/appmeta/external/<TITLE_ID>/ instead of the
+   plain /user/appmeta/<TITLE_ID>/ the loader had hardcoded. The
+   authoritative path is in app.db's tbl_contentinfo.icon0Info column,
+   which carries the full path plus a "?ts=…" cache-busting suffix
+   we have to strip.
+
+   Example raw value: /user/appmeta/external/CUSA00495/icon0.png?ts=1776965601
+                                                      ^ keep up to here
+
+   Returns 1 if a path was resolved AND the file exists on disk. The
+   caller then falls back to the hardcoded /user/appmeta/<id>/icon0.png
+   when this returns 0 — preserving behaviour for older firmwares
+   where tbl_contentinfo doesn't have the column. */
+static int
+resolve_icon_path_from_appdb(const char *id, char *out, size_t out_size) {
+  sqlite3 *db = NULL;
+  int rc = 0;
+
+  if(sqlite3_open_v2(APP_DB_PATH, &db,
+                     SQLITE_OPEN_READONLY | SQLITE_OPEN_NOMUTEX,
+                     NULL) != SQLITE_OK) {
+    if(db) sqlite3_close(db);
+    return 0;
+  }
+  if(!table_has_column(db, "tbl_contentinfo", "icon0Info")) {
+    sqlite3_close(db);
+    return 0;
+  }
+  sqlite3_stmt *st = NULL;
+  const char *sql =
+    "SELECT icon0Info FROM tbl_contentinfo "
+    "WHERE titleId=?1 AND icon0Info IS NOT NULL AND icon0Info != '' "
+    "LIMIT 1;";
+  if(sqlite3_prepare_v2(db, sql, -1, &st, NULL) != SQLITE_OK) {
+    sqlite3_close(db);
+    return 0;
+  }
+  sqlite3_bind_text(st, 1, id, -1, SQLITE_TRANSIENT);
+  if(sqlite3_step(st) == SQLITE_ROW) {
+    const unsigned char *v = sqlite3_column_text(st, 0);
+    if(v && *v) {
+      /* Copy up to and including the LAST ".png" — guards against an
+         icon name that just happens to contain ".png" mid-string. */
+      const char *s = (const char*)v;
+      const char *p = strstr(s, ".png");
+      const char *cut = p;
+      if(p) {
+        const char *next;
+        while((next = strstr(p + 4, ".png")) != NULL) {
+          cut = next;
+          p = next;
+        }
+      }
+      if(cut) {
+        size_t n = (size_t)(cut - s) + 4;  /* keep the ".png" itself */
+        if(n >= out_size) n = out_size - 1;
+        memcpy(out, s, n);
+        out[n] = 0;
+        struct stat st_;
+        if(stat(out, &st_) == 0) rc = 1;
+      }
+    }
+  }
+  sqlite3_finalize(st);
+  sqlite3_close(db);
+  return rc;
+}
+
+
 /**
  * Read /user/appmeta/<id>/icon0.png, decode, optionally downscale to
  * ICON_MAX_DIM, re-encode as JPEG and return the buffer (caller frees).
@@ -581,7 +672,13 @@ build_icon_jpeg(const char *id, unsigned char **out_buf, size_t *out_len) {
   jpeg_sink_t sink = {0};
   int rc = 0;
 
-  snprintf(path, sizeof(path), "/user/appmeta/%s/icon0.png", id);
+  /* Try app.db's tbl_contentinfo.icon0Info first — it knows about
+     /user/appmeta/external/… for PS4/external titles where the
+     hardcoded "/user/appmeta/<id>/" doesn't have the icon. Fall back
+     to the legacy path on miss. */
+  if(!resolve_icon_path_from_appdb(id, path, sizeof(path))) {
+    snprintf(path, sizeof(path), "/user/appmeta/%s/icon0.png", id);
+  }
 
   /* Slurp the PNG into memory. */
   {
@@ -690,19 +787,181 @@ appdb_icon_request(struct MHD_Connection *conn) {
 }
 
 
-/* Validate a title-id (CUSAxxxxx / PPSAxxxxx) string. */
+/* Validate a title-id and accept every recognised PS-family prefix
+   (CUSA/PPSA, ULUS/ULES/ULJS/ULKS, SLUS/SCUS/SLES/SCES/SLPS/SLPM/
+   SCED/SLED/SCPS), with or without a dash/underscore separator. */
 static int
 is_title_id(const char *s) {
-  if(!s) return 0;
-  if(strlen(s) != 9) return 0;
-  if((strncasecmp(s, "CUSA", 4) != 0) && (strncasecmp(s, "PPSA", 4) != 0)) {
-    return 0;
-  }
-  for(int i = 4; i < 9; i++) {
-    char c = s[i];
-    if(c < '0' || c > '9') return 0;
-  }
+  return title_id_normalize(s, NULL);
+}
+
+#define PIC0_MAX_W   960
+#define PIC0_JPEG_Q   72   /* slightly lower q than icon to save bandwidth */
+
+/* Replace the last occurrence of "icon0.png" in `src` with `repl` and
+   write the result into `out` (out_size bytes). Returns 1 on success. */
+static int
+subst_icon0(const char *src, const char *repl, char *out, size_t out_size) {
+  /* Find the last "icon0.png" — guards against a path that contains the
+     substring in a directory component. */
+  const char *needle = "icon0.png";
+  size_t nlen = strlen(needle);
+  const char *p = NULL, *q = src;
+  while ((q = strstr(q, needle)) != NULL) { p = q; q += nlen; }
+  if (!p) return 0;   /* no "icon0.png" in path */
+
+  size_t prefix = (size_t)(p - src);
+  size_t rlen   = strlen(repl);
+  if (prefix + rlen >= out_size) return 0;
+
+  memcpy(out, src, prefix);
+  memcpy(out + prefix, repl, rlen);
+  out[prefix + rlen] = 0;
   return 1;
+}
+
+/* Resolve a pic0.png path for `id`.  Returns 1 and fills `out` when a
+   readable file is found; 0 otherwise. */
+static int
+resolve_pic0_path(const char *id, char *out, size_t out_size) {
+  char icon_path[256];
+
+  /* Get the icon0 base path — reuse the existing resolver so we
+     automatically handle /user/appmeta/external/… titles. */
+  if (!resolve_icon_path_from_appdb(id, icon_path, sizeof(icon_path))) {
+    /* Fallback: plain /user/appmeta/<id>/icon0.png */
+    snprintf(icon_path, sizeof(icon_path),
+             "/user/appmeta/%s/icon0.png", id);
+  }
+
+  /* Candidate 1: same directory, pic0.png */
+  if (subst_icon0(icon_path, "pic0.png", out, out_size)) {
+    struct stat st;
+    if (stat(out, &st) == 0 && st.st_size > 0) return 1;
+  }
+
+  /* Candidate 2: sce_sys/ subdirectory */
+  if (subst_icon0(icon_path, "sce_sys/pic0.png", out, out_size)) {
+    struct stat st;
+    if (stat(out, &st) == 0 && st.st_size > 0) return 1;
+  }
+
+  out[0] = 0;
+  return 0;
+}
+
+
+static int
+build_pic0_jpeg(const char *id, unsigned char **out_buf, size_t *out_len) {
+  char path[256];
+  unsigned char *file_buf = NULL;
+  size_t file_len = 0;
+  int w = 0, h = 0, c = 0;
+  unsigned char *rgba = NULL;
+  unsigned char *out_rgb = NULL;
+  jpeg_sink_t sink = {0};
+  int rc = 0;
+
+  if (!resolve_pic0_path(id, path, sizeof(path))) return 0;
+
+  /* Slurp the PNG into memory. */
+  {
+    struct stat st;
+    if (stat(path, &st) != 0) goto pic0_done;
+    if (st.st_size <= 0 || st.st_size > 32 * 1024 * 1024) goto pic0_done;
+    int fd = open(path, O_RDONLY);
+    if (fd < 0) goto pic0_done;
+    file_len = (size_t)st.st_size;
+    file_buf = malloc(file_len);
+    if (!file_buf) { close(fd); goto pic0_done; }
+    if (read(fd, file_buf, file_len) != (ssize_t)file_len) {
+      close(fd);
+      goto pic0_done;
+    }
+    close(fd);
+  }
+
+  rgba = stbi_load_from_memory(file_buf, (int)file_len, &w, &h, &c, 4);
+  if (!rgba || w <= 0 || h <= 0) goto pic0_done;
+
+  /* Downscale to at most PIC0_MAX_W wide, preserving aspect ratio. */
+  int dw = w, dh = h;
+  if (w > PIC0_MAX_W) {
+    dw = PIC0_MAX_W;
+    dh = (h * PIC0_MAX_W + w / 2) / w;
+    if (dh < 1) dh = 1;
+  }
+
+  out_rgb = malloc((size_t)dw * (size_t)dh * 3);
+  if (!out_rgb) goto pic0_done;
+
+  if (dw == w && dh == h) {
+    for (int i = 0; i < w * h; i++) {
+      out_rgb[i*3+0] = rgba[i*4+0];
+      out_rgb[i*3+1] = rgba[i*4+1];
+      out_rgb[i*3+2] = rgba[i*4+2];
+    }
+  } else {
+    icon_downscale_rgba(rgba, w, h, out_rgb, dw, dh);
+  }
+
+  sink.cap = 256 * 1024;
+  sink.buf = malloc(sink.cap);
+  if (!sink.buf) goto pic0_done;
+
+  if (!stbi_write_jpg_to_func(jpeg_sink_write, &sink, dw, dh, 3, out_rgb,
+                              PIC0_JPEG_Q)) {
+    free(sink.buf);
+    sink.buf = NULL;
+    goto pic0_done;
+  }
+
+  *out_buf = sink.buf;
+  *out_len = sink.len;
+  rc = 1;
+  sink.buf = NULL; /* transferred to caller */
+
+pic0_done:
+  free(file_buf);
+  if (rgba) stbi_image_free(rgba);
+  free(out_rgb);
+  free(sink.buf);
+  return rc;
+}
+
+
+static enum MHD_Result
+appdb_pic0_request(struct MHD_Connection *conn) {
+  const char *id = MHD_lookup_connection_value(conn, MHD_GET_ARGUMENT_KIND,
+                                               "id");
+  unsigned char *jpeg = NULL;
+  size_t jpeg_len = 0;
+  enum MHD_Result ret;
+  struct MHD_Response *resp;
+
+  if(!id || !is_safe_title_id(id)) {
+    return serve_buffer(conn, MHD_HTTP_BAD_REQUEST, "text/plain",
+                        "bad id", 6, 0);
+  }
+
+  if(!build_pic0_jpeg(id, &jpeg, &jpeg_len)) {
+    return serve_buffer(conn, MHD_HTTP_NOT_FOUND, "text/plain",
+                        "no pic0", 7, 0);
+  }
+
+  resp = MHD_create_response_from_buffer(jpeg_len, jpeg, MHD_RESPMEM_MUST_FREE);
+  if(!resp) {
+    free(jpeg);
+    return serve_buffer(conn, MHD_HTTP_INTERNAL_SERVER_ERROR, "text/plain",
+                        "alloc", 5, 0);
+  }
+
+  MHD_add_response_header(resp, MHD_HTTP_HEADER_CONTENT_TYPE, "image/jpeg");
+  MHD_add_response_header(resp, MHD_HTTP_HEADER_CACHE_CONTROL,
+                          "public, max-age=86400");
+  ret = websrv_queue_response(conn, MHD_HTTP_OK, resp);
+  MHD_destroy_response(resp);
+  return ret;
 }
 
 
@@ -906,6 +1165,9 @@ appdb_request(struct MHD_Connection *conn, const char *url) {
   }
   if(!strcmp(url, "/appdb/icon")) {
     return appdb_icon_request(conn);
+  }
+  if(!strcmp(url, "/appdb/pic0")) {
+    return appdb_pic0_request(conn);
   }
   if(!strcmp(url, "/appdb/lookup")) {
     return appdb_lookup_request(conn);

@@ -30,8 +30,19 @@ void homebrew_wipe_staged_pkgs(void);
    are stderr-logged only — no UI noise. The PS5 installer accepts
    reinstalling the same contentId, so running this every boot is
    idempotent and just keeps the home-screen tile in sync with the
-   latest published PKG. */
+   latest published PKG.
+
+   Gated by the user-controlled tile_autoinstall flag (default-on,
+   persisted in /data/sonic-loader/config.ini). The thread reads the
+   flag at the top and bails before any network I/O if disabled. */
 void homebrew_auto_install_tile_init(void);
+
+/* User-visible toggle that controls whether boot-time tile auto-install
+   runs at all. Default 1. Setter persists to config.ini and, when
+   flipped off→on, kicks off an immediate install run so the user
+   doesn't have to reboot to see the tile appear. */
+int  homebrew_tile_autoinstall_enabled(void);
+void homebrew_tile_autoinstall_set_enabled(int on);
 
 /* Streaming-POST handler for /api/homebrew/install-pkg-upload. The websrv
    per-connection state machine drives this — same shape as

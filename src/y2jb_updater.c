@@ -4,7 +4,7 @@
    (autoload.js:224-233), finds every ps5_autoloader/ directory
    that already contains a Sonic Loader ELF, identifies the variant
    (with-etaHEN vs no-etaHEN by filename), pulls the matching
-   asset from the latest git.earthonion.com release, and writes
+   asset from the latest git.etawen.dev release, and writes
    it back atomically. Existing autoload.txt is left alone — we
    only replace the ELF binary the user already chose.
 
@@ -38,7 +38,7 @@
 #define YT_SPLASH_BASE64     "aHR0cHM6Ly93d3cueW91dHViZS5jb20vdHY="
 
 #define GITEA_LATEST_URL \
-  "https://git.earthonion.com/api/v1/repos/soniciso/sonicloader/releases/latest"
+  "https://git.etawen.dev/api/v1/repos/soniciso/sonicloader/releases/latest"
 
 #define MAX_DIRS  64
 
@@ -142,6 +142,20 @@ y2jb_scan(y2jb_dir_t *out) {
   /* Internal /data. */
   if(n < MAX_DIRS) probe_base("/data", out, &n);
 
+  /* itsPLK pldmgr keeps its own sonic-loader copy at
+     /data/pldmgr/payloads/sonic-loader/sonic-loader.elf. That dir is
+     not named ps5_autoloader so probe_base() never visits it — but
+     pldmgr re-launches whichever sonic-loader.elf is in there, so
+     leaving it stale means the manager keeps booting an old build
+     after every refresh. Inspect it directly. */
+  if(n < MAX_DIRS) {
+    const char *pldmgr_dir = "/data/pldmgr/payloads/sonic-loader";
+    y2jb_dir_t entry = {0};
+    if(dir_exists(pldmgr_dir) && inspect_autoloader_dir(pldmgr_dir, &entry)) {
+      out[n++] = entry;
+    }
+  }
+
   /* YT-sandbox paths intentionally excluded. */
   return n;
 }
@@ -225,25 +239,42 @@ fetch_latest_release(latest_release_t *out) {
 }
 
 
-/* Atomic-ish file write: write to <path>.tmp, then rename. */
+/* Replace the file at `path` with `data`.
+
+   The original implementation used the classic write-to-tmp-then-rename
+   pattern for atomicity, but that combo turned out to fight every
+   filesystem we actually target:
+
+     * exFAT / FAT32 (typical USB) — rename() doesn't atomically replace
+       an existing destination, returns EEXIST and leaves the old file.
+       1.0.72 worked around this by unlink-before-rename.
+     * /data on PS5 — even with the unlink, the tmp-then-rename
+       sequence still fails to update the file in some cases (reported:
+       /data/ps5_autoloader/sonic-loader.elf doesn't get overwritten
+       after the unlink fix). Likely a timing / VFS-cache quirk.
+
+   The simpler delete-then-overwrite approach the user originally
+   described — "delete the elf first then update to latest one" —
+   works everywhere, doesn't need a working rename(), and the window
+   where the destination is missing is a few-millisecond worst case.
+   If a crash hits in that window the next updater run just writes
+   afresh. Atomic semantics weren't actually load-bearing for an
+   autoloader-folder update. */
 static int
 write_atomic(const char *path, const uint8_t *data, size_t len) {
-  char tmp[400];
-  snprintf(tmp, sizeof(tmp), "%s.tmp", path);
-  int fd = open(tmp, O_CREAT | O_WRONLY | O_TRUNC, 0755);
+  /* Drop any existing file first. ENOENT is fine — first install. */
+  unlink(path);
+
+  int fd = open(path, O_WRONLY | O_CREAT | O_TRUNC, 0755);
   if(fd < 0) return -1;
   size_t off = 0;
   while(off < len) {
     ssize_t w = write(fd, data + off, len - off);
-    if(w <= 0) { close(fd); unlink(tmp); return -1; }
+    if(w <= 0) { close(fd); unlink(path); return -1; }
     off += (size_t)w;
   }
   fsync(fd);
   close(fd);
-  if(rename(tmp, path) != 0) {
-    unlink(tmp);
-    return -1;
-  }
   return 0;
 }
 
@@ -358,7 +389,7 @@ y2jb_update_request(struct MHD_Connection *conn) {
     cJSON *root = cJSON_CreateObject();
     cJSON_AddBoolToObject  (root, "ok",    0);
     cJSON_AddStringToObject(root, "error",
-        "could not fetch latest release from git.earthonion.com");
+        "could not fetch latest release from git.etawen.dev");
     return serve_json_owned(conn, MHD_HTTP_BAD_GATEWAY, root);
   }
 
@@ -409,7 +440,7 @@ y2jb_update_request(struct MHD_Connection *conn) {
    Background pass that runs ~30 s after Sonic Loader boots. Walks the
    same ps5_autoloader directories the foreground sync handles, but
    only downloads + writes when a file size differs from the latest
-   release on git.earthonion.com. Any failures are logged to stderr
+   release on git.etawen.dev. Any failures are logged to stderr
    and otherwise ignored — no notification, no toast — so a flaky
    network never disturbs a running loader. */
 
@@ -504,6 +535,69 @@ y2jb_silent_verify(void) {
 }
 
 
+/* ─────── pldmgr payload update ─────── */
+
+#define PLDMGR_PAYLOADS_DIR "/data/pldmgr/payloads"
+#define PLDMGR_WITH_ETAHEN  PLDMGR_PAYLOADS_DIR "/sonic-loader"
+#define PLDMGR_NO_ETAHEN    PLDMGR_PAYLOADS_DIR "/sonic-loader-no-etahen"
+
+/* If either pldmgr payload file exists and its size differs from the
+   latest release, download and replace it. Silent on network failure. */
+static void
+pldmgr_silent_update(void) {
+  int has_with = (file_size(PLDMGR_WITH_ETAHEN) > 4);
+  int has_no   = (file_size(PLDMGR_NO_ETAHEN)   > 4);
+  if(!has_with && !has_no) return;
+
+  latest_release_t rel = {0};
+  if(fetch_latest_release(&rel) != 0) {
+    fprintf(stderr, "pldmgr: could not fetch latest release\n");
+    return;
+  }
+
+  int need_with = has_with && (rel.size_with_etahen <= 0 ||
+      file_size(PLDMGR_WITH_ETAHEN) != rel.size_with_etahen);
+  int need_no   = has_no   && (rel.size_no_etahen   <= 0 ||
+      file_size(PLDMGR_NO_ETAHEN)   != rel.size_no_etahen);
+
+  if(!need_with && !need_no) {
+    fprintf(stderr, "pldmgr: already at %s\n", rel.tag ? rel.tag : "?");
+    release_free(&rel);
+    return;
+  }
+
+  if(need_with && rel.with_etahen_url) {
+    size_t len = 0;
+    uint8_t *buf = http_get(rel.with_etahen_url, &len);
+    if(buf && len > 0) {
+      if(write_atomic(PLDMGR_WITH_ETAHEN, buf, len) == 0)
+        fprintf(stderr, "pldmgr: updated sonic-loader to %s\n",
+                rel.tag ? rel.tag : "latest");
+      else
+        fprintf(stderr, "pldmgr: write %s failed: %s\n",
+                PLDMGR_WITH_ETAHEN, strerror(errno));
+    }
+    free(buf);
+  }
+
+  if(need_no && rel.no_etahen_url) {
+    size_t len = 0;
+    uint8_t *buf = http_get(rel.no_etahen_url, &len);
+    if(buf && len > 0) {
+      if(write_atomic(PLDMGR_NO_ETAHEN, buf, len) == 0)
+        fprintf(stderr, "pldmgr: updated sonic-loader-no-etahen to %s\n",
+                rel.tag ? rel.tag : "latest");
+      else
+        fprintf(stderr, "pldmgr: write %s failed: %s\n",
+                PLDMGR_NO_ETAHEN, strerror(errno));
+    }
+    free(buf);
+  }
+
+  release_free(&rel);
+}
+
+
 static void *
 y2jb_startup_thread(void *arg) {
   (void)arg;
@@ -513,6 +607,7 @@ y2jb_startup_thread(void *arg) {
      stack's first DNS resolutions on cold boot. */
   sleep(STARTUP_DELAY_SECONDS);
   y2jb_silent_verify();
+  pldmgr_silent_update();
   return NULL;
 }
 

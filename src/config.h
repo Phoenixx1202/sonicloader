@@ -23,3 +23,13 @@ void config_load(void);
 /* Snapshot the current state of every subsystem and write it out to
    disk. Call this from setters whenever the user changes something. */
 void config_save(void);
+
+/* Boot-order helper. Subsystem setters call config_save() unconditionally
+   when the user pokes them, but during early boot we deliberately call
+   those setters with compile-time defaults BEFORE config_load runs —
+   if those calls were allowed to write, they'd overwrite the user's
+   persisted file with defaults and we'd never see the real values
+   when config_load opens the file a moment later. config_save_set_inhibit(1)
+   makes config_save a no-op until cleared. config_load clears the
+   inhibit on its way out. */
+void config_save_set_inhibit(int on);

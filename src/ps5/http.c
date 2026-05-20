@@ -130,7 +130,9 @@ static int
 http_request(http_ctx_t* ctx, uint8_t** data, size_t* len) {
   int status = -1;
   int err;
-  int n;
+
+  *data = NULL;
+  *len  = 0;
 
   if((err=sceHttpSendRequest(ctx->reqId, 0, 0))) {
     return err;
@@ -138,23 +140,52 @@ http_request(http_ctx_t* ctx, uint8_t** data, size_t* len) {
   if((err=sceHttpGetStatusCode(ctx->reqId, &status))) {
     return err;
   }
-  if((err=sceHttpGetResponseContentLength(ctx->reqId, &err, len))) {
-    return err;
-  }
 
-  if(!len || status != 200) {
-    // TODO: support resources without a content length
+  if(status != 200) {
     return status;
   }
 
-  if(!(*data=malloc(*len))) {
+  /* Probe Content-Length. The out-param `cl_known` is 0 if the header
+     was sent (and *probed has the value), 1 if absent, 2 if the
+     server is using chunked transfer encoding. The previous
+     implementation fell through with *len = 0 whenever cl_known != 0
+     — so any chunked response (Gitea's /api/v1/ endpoints, e.g.
+     /releases/latest) appeared as an empty body to the caller, and
+     the Y2JB updater reported "could not fetch latest release".
+
+     We now ignore the probe outcome and just drain via
+     sceHttpReadData until n=0, using the probed length as a size
+     hint when present. */
+  int    cl_known = 1;
+  size_t probed   = 0;
+  if(sceHttpGetResponseContentLength(ctx->reqId, &cl_known, &probed) != 0) {
+    cl_known = 1;
+    probed   = 0;
+  }
+
+  size_t cap = (cl_known == 0 && probed > 0) ? probed : 16384;
+  size_t off = 0;
+  uint8_t *buf = malloc(cap);
+  if(!buf) {
     return -1;
   }
 
-  if((n=sceHttpReadData(ctx->reqId, *data, *len) < 0)) {
-    return n;
+  for(;;) {
+    if(cap - off < 4096) {
+      size_t new_cap = cap * 2;
+      uint8_t *nb = realloc(buf, new_cap);
+      if(!nb) { free(buf); return -1; }
+      buf = nb;
+      cap = new_cap;
+    }
+    int n = sceHttpReadData(ctx->reqId, buf + off, cap - off);
+    if(n < 0) { free(buf); return n; }
+    if(n == 0) break;
+    off += (size_t)n;
   }
 
+  *data = buf;
+  *len  = off;
   return status;
 }
 

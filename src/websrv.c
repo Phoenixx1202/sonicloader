@@ -30,10 +30,13 @@ along with this program; see the file COPYING. If not, see
 #include <microhttpd.h>
 
 #include "activity.h"
+#include "activitydb.h"
 #include "appdb.h"
+#include "tmdb.h"
 #include "asset.h"
 #include "avatar.h"
 #include "cheats.h"
+#include "dashboards.h"
 #include "fan.h"
 #include "fs.h"
 #include "homebrew.h"
@@ -41,10 +44,12 @@ along with this program; see the file COPYING. If not, see
 #include "kstuff_updater.h"
 #include "smp_updater.h"
 #include "np.h"
+#include "notif_inbox.h"
 #include "garlic.h"
 #include "offact.h"
 #include "y2jb_updater.h"
 #include "dumper.h"
+#include "downloader.h"
 #include "transfer.h"
 #include "mdns.h"
 #include "smb.h"
@@ -68,6 +73,7 @@ typedef struct post_request {
   void* avatar_upload_state; /* opaque per-connection state for /api/avatar/upload */
   void* pkg_upload_state;    /* opaque per-connection state for /api/homebrew/install-pkg-upload */
   void* fs_upload_state;     /* opaque per-connection state for /api/fs/upload */
+  void* payload_upload_state;/* opaque per-connection state for /api/payloads/upload */
 } post_request_t;
 
 
@@ -165,6 +171,7 @@ version_request(struct MHD_Connection *conn) {
  **/
 extern int  cheats_engine_enabled(void);
 extern void cheats_engine_set_enabled(int on);
+extern int  cheats_game_running(void);
 
 static enum MHD_Result
 state_request(struct MHD_Connection *conn) {
@@ -176,16 +183,21 @@ state_request(struct MHD_Connection *conn) {
   const char *resume_arg;
   const char *cheats_arg;
   const char *backpork_arg;
-  const char *etahen_arg;
+  const char *lapyjb_arg;
+  const char *nanodns_arg;
+  const char *tile_autoinstall_arg;
   int pause_secs = 25;
   int resume_secs = 10;
   int kstuff_supported;
   int kstuff_state;
   int auto_state;
   int cheats_state;
+  int game_running;
   int backpork_state;
-  int etahen_state;
-  char body[896];
+  int lapyjb_state;
+  int nanodns_state;
+  int tile_autoinstall_state;
+  char body[1024];
   size_t body_len;
 
   auto_arg     = MHD_lookup_connection_value(conn, MHD_GET_ARGUMENT_KIND, "auto");
@@ -194,7 +206,10 @@ state_request(struct MHD_Connection *conn) {
   resume_arg   = MHD_lookup_connection_value(conn, MHD_GET_ARGUMENT_KIND, "resume");
   cheats_arg   = MHD_lookup_connection_value(conn, MHD_GET_ARGUMENT_KIND, "cheats");
   backpork_arg = MHD_lookup_connection_value(conn, MHD_GET_ARGUMENT_KIND, "backpork");
-  etahen_arg   = MHD_lookup_connection_value(conn, MHD_GET_ARGUMENT_KIND, "etahen");
+  lapyjb_arg   = MHD_lookup_connection_value(conn, MHD_GET_ARGUMENT_KIND, "lapyjb");
+  nanodns_arg  = MHD_lookup_connection_value(conn, MHD_GET_ARGUMENT_KIND, "nanodns");
+  tile_autoinstall_arg =
+                 MHD_lookup_connection_value(conn, MHD_GET_ARGUMENT_KIND, "tileAutoinstall");
 
   if(auto_arg) {
     kmonitor_set_auto_toggle(strcmp(auto_arg, "0") != 0);
@@ -203,13 +218,28 @@ state_request(struct MHD_Connection *conn) {
     kmonitor_kstuff_set(strcmp(kstuff_arg, "0") != 0);
   }
   if(cheats_arg) {
-    cheats_engine_set_enabled(strcmp(cheats_arg, "0") != 0);
+    /* Refuse to flip the master cheat switch ON from outside a running
+       game. Persisted "on" from config_load() goes through the setter
+       directly and bypasses this check (config.c → cheats.c), which is
+       what we want — last-session state restores even before the user
+       has launched a title yet. The UI mirrors this gate by disabling
+       the toggle when /api/state reports gameRunning=false. */
+    int want_cheats = strcmp(cheats_arg, "0") != 0;
+    if(!want_cheats || cheats_game_running()) {
+      cheats_engine_set_enabled(want_cheats);
+    }
   }
   if(backpork_arg) {
     sys_backpork_set_enabled(strcmp(backpork_arg, "0") != 0);
   }
-  if(etahen_arg) {
-    sys_etahen_set_enabled(strcmp(etahen_arg, "0") != 0);
+  if(lapyjb_arg) {
+    sys_lapyjb_set_enabled(strcmp(lapyjb_arg, "0") != 0);
+  }
+  if(nanodns_arg) {
+    sys_nanodns_set_enabled(strcmp(nanodns_arg, "0") != 0);
+  }
+  if(tile_autoinstall_arg) {
+    homebrew_tile_autoinstall_set_enabled(strcmp(tile_autoinstall_arg, "0") != 0);
   }
 
   if(pause_arg || resume_arg) {
@@ -225,26 +255,35 @@ state_request(struct MHD_Connection *conn) {
   kstuff_state     = kmonitor_kstuff_is_enabled();
   auto_state       = kmonitor_auto_toggle_enabled();
   cheats_state     = cheats_engine_enabled();
+  game_running     = cheats_game_running();
   backpork_state   = sys_backpork_is_running();
-  etahen_state     = sys_etahen_is_running();
+  lapyjb_state     = sys_lapyjb_is_running();
+  nanodns_state    = sys_nanodns_is_running();
+  tile_autoinstall_state = homebrew_tile_autoinstall_enabled();
 
   body_len = (size_t)snprintf(body, sizeof(body),
     "{\"kstuffSupported\":%s,"
     "\"kstuffEnabled\":%s,"
     "\"autoToggleEnabled\":%s,"
     "\"cheatsEnabled\":%s,"
+    "\"gameRunning\":%s,"
     "\"backporkRunning\":%s,"
-    "\"etahenRunning\":%s,"
-    "\"etahenSupported\":%s,"
+    "\"lapyjbRunning\":%s,"
+    "\"lapyjbSupported\":%s,"
+    "\"nanodnsRunning\":%s,"
+    "\"tileAutoinstallEnabled\":%s,"
     "\"pauseAfterSeconds\":%d,"
     "\"resumeAfterSeconds\":%d}",
     kstuff_supported ? "true" : "false",
     (kstuff_state == 1) ? "true" : "false",
     auto_state ? "true" : "false",
     cheats_state ? "true" : "false",
+    game_running ? "true" : "false",
     backpork_state ? "true" : "false",
-    etahen_state ? "true" : "false",
-    sys_etahen_supported() ? "true" : "false",
+    lapyjb_state ? "true" : "false",
+    "true",   /* lapyjbSupported — always bundled in this build */
+    nanodns_state ? "true" : "false",
+    tile_autoinstall_state ? "true" : "false",
     pause_secs, resume_secs);
 
   if((resp=MHD_create_response_from_buffer(body_len, body,
@@ -462,6 +501,7 @@ websrv_on_request(void *cls, struct MHD_Connection *conn,
     req->avatar_upload_state = NULL;
     req->pkg_upload_state = NULL;
     req->fs_upload_state = NULL;
+    req->payload_upload_state = NULL;
     return MHD_YES;
   }
 
@@ -513,11 +553,29 @@ websrv_on_request(void *cls, struct MHD_Connection *conn,
     if(!strncmp("/api/dumper/", url, 12)) {
       return dumper_request(conn, url);
     }
+    if(!strncmp("/api/downloader", url, 15)) {
+      return downloader_request(conn, url);
+    }
     if(!strncmp("/api/fs/", url, 8)) {
       return transfer_request(conn, url);
     }
     if(!strncmp("/api/fan", url, 8)) {
       return fan_request(conn, url);
+    }
+    if(!strncmp("/api/notifications", url, 18)) {
+      return notif_inbox_request(conn, url);
+    }
+    if(!strncmp("/api/klogs", url, 10)) {
+      return dashboards_klogs_request(conn, url);
+    }
+    if(!strcmp("/api/stats", url)) {
+      return dashboards_stats_request(conn);
+    }
+    /* /api/activitydb MUST be matched before /api/activity (length-13
+       prefix would otherwise catch both and route activitydb hits to
+       the wrong handler). */
+    if(!strncmp("/api/activitydb", url, 15)) {
+      return activitydb_request(conn, url);
     }
     if(!strncmp("/api/activity", url, 13)) {
       return activity_request(conn, url);
@@ -525,6 +583,14 @@ websrv_on_request(void *cls, struct MHD_Connection *conn,
     if(!strncmp("/api/releases", url, 13)) {
       extern enum MHD_Result releases_request(struct MHD_Connection*, const char*);
       return releases_request(conn, url);
+    }
+    if(!strncmp("/api/pkgzone/", url, 13)) {
+      extern enum MHD_Result pkgzone_request(struct MHD_Connection*, const char*);
+      return pkgzone_request(conn, url);
+    }
+    if(!strncmp("/api/payloads/", url, 14)) {
+      extern enum MHD_Result payload_registry_request(struct MHD_Connection*, const char*);
+      return payload_registry_request(conn, url);
     }
     if(!strncmp("/api/ftpsrv", url, 11)) {
       /* /api/ftpsrv          { running, port, user, type, ... }
@@ -799,6 +865,9 @@ websrv_on_request(void *cls, struct MHD_Connection *conn,
     if(!strncmp("/appdb", url, 6) && (url[6] == 0 || url[6] == '/')) {
       return appdb_request(conn, url);
     }
+    if(!strncmp("/api/tmdb/", url, 10)) {
+      return tmdb_request(conn, url);
+    }
     if(!strcmp("/hbldr", url)) {
       return hbldr_request(conn);
     }
@@ -844,6 +913,15 @@ websrv_on_request(void *cls, struct MHD_Connection *conn,
     if(!strcmp("/files", url)) {
       return asset_request(conn, "/files.html");
     }
+    if(!strcmp("/klog", url)) {
+      return asset_request(conn, "/klog.html");
+    }
+    if(!strcmp("/stats", url)) {
+      return asset_request(conn, "/stats.html");
+    }
+    if(!strcmp("/pkgzone", url)) {
+      return asset_request(conn, "/pkgzone.html");
+    }
     return asset_request(conn, url);
   }
 
@@ -860,6 +938,12 @@ websrv_on_request(void *cls, struct MHD_Connection *conn,
       return fs_upload_request(conn, upload_data, upload_data_size,
                                &req->fs_upload_state);
     }
+    if(!strcmp("/api/payloads/upload", url)) {
+      extern enum MHD_Result payload_upload_request(struct MHD_Connection*,
+                                                    const char*, size_t*, void**);
+      return payload_upload_request(conn, upload_data, upload_data_size,
+                                    &req->payload_upload_state);
+    }
     if(*upload_data_size) {
       ret = MHD_post_process(req->pp, upload_data, *upload_data_size);
       *upload_data_size = 0;
@@ -867,6 +951,20 @@ websrv_on_request(void *cls, struct MHD_Connection *conn,
     }
     if(!strcmp("/elfldr", url)) {
       return elfldr_request(conn, req->data);
+    }
+    /* Notifications inbox actions ride POST so they're side-effecting
+       (mark all read / clear). The handler validates the URL itself. */
+    if(!strncmp("/api/notifications", url, 18)) {
+      return notif_inbox_request(conn, url);
+    }
+    if(!strcmp("/api/fan/curve/set", url)) {
+      return fan_request(conn, url);
+    }
+    if(!strncmp("/api/klogs", url, 10)) {
+      return dashboards_klogs_request(conn, url);
+    }
+    if(!strncmp("/api/dumper/", url, 12)) {
+      return dumper_request(conn, url);
     }
   }
 
@@ -910,6 +1008,10 @@ websrv_on_completed(void *cls, struct MHD_Connection *connection,
   }
   if(req->fs_upload_state) {
     fs_upload_free(req->fs_upload_state);
+  }
+  if(req->payload_upload_state) {
+    extern void payload_upload_free(void*);
+    payload_upload_free(req->payload_upload_state);
   }
 
   MHD_destroy_post_processor(req->pp);

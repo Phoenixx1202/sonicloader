@@ -73,14 +73,11 @@ worker_request(struct MHD_Connection *conn) {
 
 static enum MHD_Result
 savemgr_request(struct MHD_Connection *conn) {
-  const char *on = MHD_lookup_connection_value(conn,
-                          MHD_GET_ARGUMENT_KIND, "on");
-  if(on) {
-    int want = strcmp(on, "0") != 0;
-    sys_garlic_savemgr_set_enabled(want);
-    extern void config_save(void);
-    config_save();
-  }
+  /* SaveMgr is mandatory now -- ignore the `on` query param and just
+     re-assert running. Leaves the endpoint shape stable for any older
+     UI build hitting /api/garlic/savemgr?on=0|1. */
+  if(!sys_garlic_savemgr_is_running())
+    sys_garlic_savemgr_set_enabled(1);
   return respond_state(conn);
 }
 

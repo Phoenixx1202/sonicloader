@@ -104,6 +104,16 @@ asset_request(struct MHD_Connection *conn, const char* url) {
 					   MHD_RESPMEM_PERSISTENT))) {
     if(mime) {
       MHD_add_response_header(resp, MHD_HTTP_HEADER_CONTENT_TYPE, mime);
+      /* HTML pages must not be cached by the PS5 in-app browser.
+         Without this, WebKit holds onto a stale launcher.html across
+         loader updates — e.g. the v1.5.1 user who reported that
+         clicking "Homebrew" landed them on the ELF Loader page,
+         because their cached HTML still carried older markup.
+         Static assets (JS/CSS/images) cache normally. */
+      if(strstr(mime, "text/html")) {
+        MHD_add_response_header(resp, MHD_HTTP_HEADER_CACHE_CONTROL,
+                                "no-store, must-revalidate");
+      }
     }
     ret = websrv_queue_response(conn, status, resp);
     MHD_destroy_response(resp);

@@ -12,6 +12,7 @@
 #include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <stdatomic.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -45,7 +46,7 @@
    on the home screen as "Sonic Loader". Hosted on the project repo
    at /raw/branch/main/payloads/ so it tracks the source tree. */
 #define LAUNCHER_PKG_URL \
-  "https://git.earthonion.com/soniciso/sonicloader/raw/branch/main/" \
+  "https://git.etawen.dev/soniciso/sonicloader/raw/branch/main/" \
   "payloads/sonic-loader-tile.pkg"
 
 #define DOWNLOAD_DIR  "/data/sonic-loader/dl"
@@ -1173,15 +1174,56 @@ homebrew_request(struct MHD_Connection *conn, const char *url) {
 #include <pthread.h>
 #include <sys/syscall.h>
 
+/* Default-on. config_load() writes whatever the user persisted before
+   homebrew_auto_install_tile_init() runs, so a user who disabled the
+   tile auto-install will see the thread bail without touching the
+   network. */
+static atomic_int g_tile_autoinstall = 1;
+
+int
+homebrew_tile_autoinstall_enabled(void) {
+  return atomic_load(&g_tile_autoinstall);
+}
+
+void
+homebrew_tile_autoinstall_set_enabled(int on) {
+  int prev = atomic_exchange(&g_tile_autoinstall, on ? 1 : 0);
+  extern void config_save(void);
+  config_save();
+  /* Off→on at runtime: kick off an install run now so the user
+     doesn't have to reboot to see the tile appear. The PS5 installer
+     accepts reinstalling the same contentId so a duplicate run while
+     the boot-time thread is still asleep is harmless. */
+  if (!prev && on) {
+    homebrew_auto_install_tile_init();
+  }
+}
+
 static void *
 auto_install_tile_thread(void *arg) {
   (void)arg;
   syscall(SYS_thr_set_name, -1, "tile-autoinst");
 
+  /* User has the auto-install toggled off in Settings — bail before
+     any network I/O so disabled really means "leave the network
+     alone". The setter re-arms by spawning a fresh thread when the
+     user flips the toggle back on. */
+  if (!atomic_load(&g_tile_autoinstall)) {
+    fprintf(stderr, "tile-autoinst: skipped (disabled by user)\n");
+    return NULL;
+  }
+
   /* Give the network stack + DNS resolver time to come up. The y2jb
      verify uses the same delay for the same reason — http_get inside
      the first ~10 s of boot is unreliable. */
   sleep(30);
+
+  /* Re-check after the sleep — user may have flipped the toggle off
+     while we were waiting. */
+  if (!atomic_load(&g_tile_autoinstall)) {
+    fprintf(stderr, "tile-autoinst: skipped (disabled mid-wait)\n");
+    return NULL;
+  }
 
   ensure_dir("/data/sonic-loader");
   ensure_dir(PKG_DIR);

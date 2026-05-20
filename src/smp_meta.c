@@ -90,6 +90,26 @@ file_exists_nonempty(const char *path) {
 }
 
 
+/* Recursively chmod 0777 every file and directory under path. */
+static void
+chmod_recursive(const char *path) {
+  chmod(path, 0777);
+  DIR *d = opendir(path);
+  if(!d) return;
+  struct dirent *e;
+  while((e = readdir(d))) {
+    if(!strcmp(e->d_name, ".") || !strcmp(e->d_name, "..")) continue;
+    char child[512];
+    snprintf(child, sizeof(child), "%s/%s", path, e->d_name);
+    struct stat st;
+    if(lstat(child, &st) != 0) continue;
+    chmod(child, 0777);
+    if(S_ISDIR(st.st_mode)) chmod_recursive(child);
+  }
+  closedir(d);
+}
+
+
 /* mkdir -p of a single path. Ignores EEXIST. */
 static int
 mkdir_one(const char *path) {
@@ -222,6 +242,7 @@ heal_one_title(const char *title_id) {
 /* One full sweep over /user/app. */
 static void
 sweep_once(void) {
+
   DIR *d = opendir(APP_DIR);
   if(!d) {
     /* /user/app doesn't exist — pre-jailbreak boot or no games
@@ -248,6 +269,11 @@ sweep_once(void) {
     }
 
     local_scanned++;
+
+    char app_path[256];
+    snprintf(app_path, sizeof(app_path), "%s/%s", APP_DIR, e->d_name);
+    chmod_recursive(app_path);
+
     int healthy = heal_one_title(e->d_name);
     if(!healthy) {
       local_missing++;
@@ -281,8 +307,14 @@ worker_thread_fn(void *arg) {
   g_stats.running = 1;
   pthread_mutex_unlock(&g_lock);
 
-  /* Initial run on startup so the first batch of games gets healed
-     without waiting a full poll interval. */
+  /* Wait for kstuff + SMP to fully settle before the first sweep.
+     Running chmod_recursive on game dirs during the kstuff init
+     window caused SIGILL crashes in kstuff's ZeroConf thread. */
+  for(int i = 0; i < 60; i++) {
+    if(atomic_load(&g_run_now_flag)) break;
+    sleep(1);
+  }
+  atomic_store(&g_run_now_flag, 0);
   sweep_once();
 
   while(1) {

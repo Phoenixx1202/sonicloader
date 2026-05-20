@@ -74,7 +74,7 @@ that opens the web UI on `:6969`.
 
 Two ways to ship it to users:
 
-1. Upload as a release asset on `git.earthonion.com/soniciso/sonicloader`
+1. Upload as a release asset on `git.etawen.dev/soniciso/sonicloader`
    alongside the ELFs, then point Sonic Loader's "Install Sonic Loader UI"
    button at it (one-line change to `LAUNCHER_PKG_URL` in
    `src/homebrew.c`).

@@ -177,10 +177,36 @@ along with this program; see the file COPYING. If not, see
   <body>
     <nav class="topnav">
       <a href="/" title="Back to home">← Home</a>
-      <span class="spacer"></span>
       <a href="/homebrew">Homebrew</a>
-      <!-- File Manager hidden in 1.0.50 — known-unstable. -->
-      <a href="/fs/">Files</a>
+      <a href="/klog">Klog</a>
+      <a href="/stats">Stats</a>
+      <a href="/pkgzone" title="Browse and install PS5 homebrew">🛒 PKG Zone</a>
+      <a href="/files">📁 Files</a>
+      <a href="/?settings=open" title="Open Sonic Loader settings">⚙ Settings</a>
+      <span class="spacer"></span>
+      <a id="elfldr-savemgr" href="#" target="_blank" rel="noopener"
+         title="Open Garlic SaveMgr (port 8082)">SaveMgr</a>
+      <script>
+        (function(){
+          var el = document.getElementById('elfldr-savemgr');
+          if (el) el.href = 'http://' + location.hostname + ':8082/';
+        })();
+        /* Defeat PS5 in-app WebKit bfcache + HTTP cache that ignore
+           `Cache-Control: no-store` (see launcher.html for context). */
+        document.querySelectorAll('.topnav a[href^="/"]').forEach(function(a) {
+          a.addEventListener('click', function(e) {
+            if (a.target === '_blank') return;
+            var href = a.getAttribute('href');
+            if (!href || href.charAt(0) === '#') return;
+            e.preventDefault();
+            var sep = href.indexOf('?') >= 0 ? '&' : '?';
+            window.location.href = href + sep + '_=' + Date.now();
+          });
+        });
+        window.addEventListener('pageshow', function(e) {
+          if (e.persisted) window.location.reload();
+        });
+      </script>
     </nav>
     <div id="launcher">
       <h1>Payload launcher</h1>

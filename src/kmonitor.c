@@ -37,7 +37,10 @@
 #include <ps5/kernel.h>
 
 #include "activity.h"
+#include "dashboards.h"
 #include "kmonitor.h"
+#include "notif_inbox.h"
+#include "titleid.h"
 
 
 #define KSTUFF_TOGGLE_OFFSET     14
@@ -250,29 +253,28 @@ schedule_at(struct timespec *out, int seconds) {
 /* --------------------------------------------------------------------- */
 
 /**
- * Find a CUSA##### or PPSA##### title id substring in `line`.
- * On success, writes up to `out_size-1` chars into `out` and returns 1.
+ * Find a recognised PS-family title-id substring in `line` (CUSA/PPSA
+ * for PS4-PS5, ULUS/ULES/ULJS/ULKS for PSP, SLUS/SCUS/SLES/SCES/SLPS/
+ * SLPM/SCED/SLED/SCPS for PS1-PS2). The optional dash separator is
+ * accepted on input; the normalised separator-free 9-char form is
+ * what gets written into `out` so the rest of the pipeline can compare
+ * by simple strcmp.
  */
 static int
 find_title_id(const char *line, char *out, size_t out_size) {
-  const char *p = line;
-  while((p = strpbrk(p, "CP")) != NULL) {
-    int is_cusa = !strncmp(p, "CUSA", 4);
-    int is_ppsa = !strncmp(p, "PPSA", 4);
-    if(is_cusa || is_ppsa) {
-      const char *q = p + 4;
-      int digits = 0;
-      while(*q && isdigit((unsigned char)*q) && digits < 8) {
-        q++; digits++;
-      }
-      if(digits == 5 && (size_t)(q - p) < out_size) {
-        size_t n = q - p;
-        memcpy(out, p, n);
-        out[n] = 0;
-        return 1;
-      }
+  if(out_size < 10) return 0;
+  for(const char *p = line; *p; p++) {
+    /* Cheap pre-filter — only call title_id_normalize() when the next
+       character is one of the prefix initials we recognise. Keeps the
+       per-byte klog scan close to its old cost. */
+    char c = *p;
+    if(c != 'C' && c != 'P' && c != 'U' && c != 'S' &&
+       c != 'c' && c != 'p' && c != 'u' && c != 's') continue;
+    char norm[10];
+    if(title_id_normalize(p, norm)) {
+      memcpy(out, norm, 10);
+      return 1;
     }
-    p++;
   }
   return 0;
 }
@@ -343,8 +345,95 @@ classify_line(const char *line) {
 }
 
 
+/* Crash-line scanner. Pushes a notification when the kernel log
+   surfaces a real fault — Abort Trap, panic, signal-name death,
+   heap corruption, stack-smash. Conservative on purpose: generic
+   "ERROR" / "fail" lines are extremely noisy on the PS5 (PFAuthClient
+   spam, mbus session-killed etc.) and would just train users to mute
+   the bell. The keyword list deliberately covers only signals the
+   process supervisor actually prints when something CRASHED. */
+static void
+scan_for_crash(const char *line) {
+  static const char * const KEYWORDS[] = {
+    "Abort Trap",       "abort trap",
+    "Trap 6",
+    "SIGABRT", "SIGSEGV", "SIGBUS", "SIGILL", "SIGFPE",
+    "kernel panic", "Kernel panic", "panic:",
+    "core dump", "coredump",
+    "double free", "double-free",
+    "heap corruption",
+    "stack smashing", "stack canary",
+    "use-after-free",
+    "Bus error",
+    NULL
+  };
+
+  const char *hit = NULL;
+  for (const char * const *k = KEYWORDS; *k; k++) {
+    const char *p = strstr(line, *k);
+    if (p) { hit = p; break; }
+  }
+  if (!hit) return;
+
+  /* Debounce: drop duplicates of the same trimmed line within a 5s
+     window so a process that traps repeatedly only counts once. */
+  static char  last_msg[256];
+  static time_t last_at = 0;
+  time_t now = time(NULL);
+
+  /* Trim the leading "<NUM>" syslog priority + the timestamp prefix
+     so the notification bell shows the meaningful tail of the line. */
+  const char *body = line;
+  if (*body == '<') {
+    const char *gt = strchr(body, '>');
+    if (gt) body = gt + 1;
+  }
+  while (*body == ' ' || *body == '\t') body++;
+  /* Skip a "12:34:56 PM" or "12:34:56 " timestamp if present. */
+  if (isdigit((unsigned char)body[0]) && isdigit((unsigned char)body[1]) &&
+      body[2] == ':') {
+    const char *sp = strchr(body, ' ');
+    if (sp) {
+      const char *next = sp + 1;
+      if (next[0] == 'A' || next[0] == 'P') {
+        const char *sp2 = strchr(next, ' ');
+        if (sp2) body = sp2 + 1;
+      } else {
+        body = next;
+      }
+    }
+  }
+
+  char msg[240];
+  snprintf(msg, sizeof(msg), "⚠ %s", body);
+  /* Strip trailing CR/LF/whitespace. */
+  size_t mn = strlen(msg);
+  while (mn > 0 && (msg[mn-1] == '\n' || msg[mn-1] == '\r' ||
+                    msg[mn-1] == ' '  || msg[mn-1] == '\t')) {
+    msg[--mn] = 0;
+  }
+
+  if (now - last_at < 5 && !strcmp(last_msg, msg)) return;
+  strncpy(last_msg, msg, sizeof(last_msg) - 1);
+  last_msg[sizeof(last_msg) - 1] = 0;
+  last_at = now;
+
+  notif_inbox_push(msg);
+}
+
+
 static void
 on_klog_line(const char *line) {
+  /* Mirror every line into the dashboards klog ring so the /klog
+     viewer page can show it. Cheap — single locked memcpy. */
+  dashboards_klog_push(line);
+
+  /* Surface real crashes (Abort Trap, signal death, kernel panic,
+     heap corruption) in the notifications inbox so the user sees
+     them in the bell drawer instead of having to dig through
+     /klog. Persisted across reboots — see notif_inbox.c. */
+  scan_for_crash(line);
+
   /* Activity logging runs FIRST, regardless of the kstuff auto-toggle
      state — we always want to track per-title launch/exit events for
      the spotlight stats overlay. The auto-toggle gate stays below. */

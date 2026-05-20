@@ -31,7 +31,18 @@
 
     function fillFromJson(j) {
       try {
-        var v = j && (j.version || j.tag);
+        /* Prefer the build-time VERSION_TAG (`j.tag`) over the
+           git-describe SONIC_VERSION (`j.version`). The git-describe
+           string is noisy: it pins to the oldest annotated tag
+           (v1.1.0, since later releases use lightweight API-created
+           tags) and carries `-dirty` because the elf is rebuilt
+           against the about-to-be-committed source. VERSION_TAG is
+           the canonical release name. */
+        var v = '';
+        if (j) v = j.tag || j.version || '';
+        if (v.indexOf('sonic-loader-') === 0) {
+          v = v.slice('sonic-loader-'.length);
+        }
         if (v) el.textContent = 'Sonic Loader ' + v;
       } catch (_) {}
     }

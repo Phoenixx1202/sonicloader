@@ -51,7 +51,7 @@
    firmwares well below 10.01. */
 #define KSTUFF_RELEASES_URL_LOWFW NULL
 #define KSTUFF_DIRECT_URL_LOWFW \
-  "https://git.earthonion.com/soniciso/sonicloader/raw/branch/main/" \
+  "https://git.etawen.dev/soniciso/sonicloader/raw/branch/main/" \
   "payloads/kstuff-lowfw.elf"
 
 #define KSTUFF_INSTALL_PATH "/data/kstuff.elf"

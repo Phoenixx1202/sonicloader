@@ -556,6 +556,27 @@ static const char * const SMP_DEFAULT_SCAN_PATHS[] = {
 
 static atomic_int g_smp_defaults_on = 1;     /* default ON */
 
+/* SMP config.ini tunables — written by rewrite_scanpath_block(). */
+static atomic_int g_smp_debug                    = 1;
+static atomic_int g_smp_quiet_mode               = 0;
+static atomic_int g_smp_kstuff_auto_toggle       = 1;
+static atomic_int g_smp_kstuff_crash_detection   = 1;
+static atomic_int g_smp_kstuff_pause_delay_image  = 25;
+static atomic_int g_smp_kstuff_pause_delay_direct = 15;
+
+int  smp_cfg_get_debug(void)                  { return atomic_load(&g_smp_debug); }
+void smp_cfg_set_debug(int v)                 { atomic_store(&g_smp_debug, v ? 1 : 0); }
+int  smp_cfg_get_quiet_mode(void)             { return atomic_load(&g_smp_quiet_mode); }
+void smp_cfg_set_quiet_mode(int v)            { atomic_store(&g_smp_quiet_mode, v ? 1 : 0); }
+int  smp_cfg_get_kstuff_auto_toggle(void)     { return atomic_load(&g_smp_kstuff_auto_toggle); }
+void smp_cfg_set_kstuff_auto_toggle(int v)    { atomic_store(&g_smp_kstuff_auto_toggle, v ? 1 : 0); }
+int  smp_cfg_get_kstuff_crash_detection(void) { return atomic_load(&g_smp_kstuff_crash_detection); }
+void smp_cfg_set_kstuff_crash_detection(int v){ atomic_store(&g_smp_kstuff_crash_detection, v ? 1 : 0); }
+int  smp_cfg_get_pause_delay_image(void)      { return atomic_load(&g_smp_kstuff_pause_delay_image); }
+void smp_cfg_set_pause_delay_image(int v)     { atomic_store(&g_smp_kstuff_pause_delay_image, v < 0 ? 0 : v > 3600 ? 3600 : v); }
+int  smp_cfg_get_pause_delay_direct(void)     { return atomic_load(&g_smp_kstuff_pause_delay_direct); }
+void smp_cfg_set_pause_delay_direct(int v)    { atomic_store(&g_smp_kstuff_pause_delay_direct, v < 0 ? 0 : v > 3600 ? 3600 : v); }
+
 /* Manual paths kept in a static buffer guarded by an unlocked atomic
    "version" counter — readers re-snapshot if version changed. Simpler
    than a mutex for this read-mostly state. */
@@ -608,6 +629,19 @@ sys_smp_manual_paths_load(const char *csv) {
     p = comma + 1;
   }
 }
+
+/* Call cb(path, arg) for every active SMP scan path — default paths
+   (when defaults are on) followed by any manual paths. */
+void
+smp_foreach_scan_path(void (*cb)(const char *, void *), void *arg) {
+  if(atomic_load(&g_smp_defaults_on)) {
+    for(int i = 0; SMP_DEFAULT_SCAN_PATHS[i]; i++)
+      cb(SMP_DEFAULT_SCAN_PATHS[i], arg);
+  }
+  for(int i = 0; i < g_manual_count; i++)
+    cb(g_manual_paths[i], arg);
+}
+
 
 /* Slurp config.ini into a heap buffer (caller frees). Returns NULL on
    I/O failure or if the file is huge (>64 KB). */
@@ -688,6 +722,12 @@ rewrite_scanpath_block(void) {
         memcpy(tmp, line, L); tmp[L] = '\0';
         char *t = trim(tmp);
         if(strncmp(t, "scanpath=", 9) == 0) drop = 1;
+        if(strncmp(t, "debug=", 6) == 0) drop = 1;
+        if(strncmp(t, "quiet_mode=", 11) == 0) drop = 1;
+        if(strncmp(t, "kstuff_game_auto_toggle=", 24) == 0) drop = 1;
+        if(strncmp(t, "kstuff_crash_detection=", 23) == 0) drop = 1;
+        if(strncmp(t, "kstuff_pause_delay_image_seconds=", 33) == 0) drop = 1;
+        if(strncmp(t, "kstuff_pause_delay_direct_seconds=", 34) == 0) drop = 1;
       }
       if(!drop) {
         size_t off = strlen(out);
@@ -736,6 +776,24 @@ rewrite_scanpath_block(void) {
     mkdir(SMP_SENTINEL_DIR, 0755);
     size_t off = strlen(out);
     snprintf(out + off, cap - off, "scanpath=%s\n", SMP_SENTINEL_DIR);
+  }
+
+  /* Write SMP config.ini tunables from Sonic Loader settings. */
+  {
+    size_t off = strlen(out);
+    snprintf(out + off, cap - off,
+             "debug=%d\n"
+             "quiet_mode=%d\n"
+             "kstuff_game_auto_toggle=%d\n"
+             "kstuff_crash_detection=%d\n"
+             "kstuff_pause_delay_image_seconds=%d\n"
+             "kstuff_pause_delay_direct_seconds=%d\n",
+             smp_cfg_get_debug(),
+             smp_cfg_get_quiet_mode(),
+             smp_cfg_get_kstuff_auto_toggle(),
+             smp_cfg_get_kstuff_crash_detection(),
+             smp_cfg_get_pause_delay_image(),
+             smp_cfg_get_pause_delay_direct());
   }
 
   int wrc = write_config_atomic(out);
@@ -1021,6 +1079,47 @@ meta_poll_request(struct MHD_Connection *conn) {
 }
 
 
+/* GET /api/smp/config              — return all tunable settings as JSON.
+   GET /api/smp/config?key=val...   — set one or more values, persist,
+                                      rewrite config.ini, return new state. */
+static enum MHD_Result
+smp_config_request(struct MHD_Connection *conn) {
+  /* Apply any query params that were sent. */
+  const char *p;
+#define QBOOL(param, setter) \
+  if((p = MHD_lookup_connection_value(conn, MHD_GET_ARGUMENT_KIND, param))) \
+    setter(strcmp(p,"0") && strcasecmp(p,"false") && strcasecmp(p,"off"));
+#define QINT(param, setter) \
+  if((p = MHD_lookup_connection_value(conn, MHD_GET_ARGUMENT_KIND, param))) \
+    setter((int)strtol(p, NULL, 10));
+
+  QBOOL("debug",           smp_cfg_set_debug)
+  QBOOL("quiet_mode",      smp_cfg_set_quiet_mode)
+  QBOOL("kstuff_toggle",   smp_cfg_set_kstuff_auto_toggle)
+  QBOOL("crash_detect",    smp_cfg_set_kstuff_crash_detection)
+  QINT ("pause_image",     smp_cfg_set_pause_delay_image)
+  QINT ("pause_direct",    smp_cfg_set_pause_delay_direct)
+#undef QBOOL
+#undef QINT
+
+  /* Persist to Sonic Loader config and rewrite SMP config.ini. */
+  extern void config_save(void);
+  config_save();
+  rewrite_scanpath_block();
+
+  cJSON *r = cJSON_CreateObject();
+  cJSON_AddBoolToObject(r, "debug",                smp_cfg_get_debug());
+  cJSON_AddBoolToObject(r, "quietMode",            smp_cfg_get_quiet_mode());
+  cJSON_AddBoolToObject(r, "kstuffAutoToggle",     smp_cfg_get_kstuff_auto_toggle());
+  cJSON_AddBoolToObject(r, "kstuffCrashDetection", smp_cfg_get_kstuff_crash_detection());
+  cJSON_AddNumberToObject(r, "pauseDelayImage",    smp_cfg_get_pause_delay_image());
+  cJSON_AddNumberToObject(r, "pauseDelayDirect",   smp_cfg_get_pause_delay_direct());
+  enum MHD_Result ret = serve_json(conn, MHD_HTTP_OK, r);
+  cJSON_Delete(r);
+  return ret;
+}
+
+
 enum MHD_Result
 smp_updater_request(struct MHD_Connection *conn, const char *url) {
   if(!strcmp(url, "/api/smp"))         return info_request(conn);
@@ -1035,6 +1134,7 @@ smp_updater_request(struct MHD_Connection *conn, const char *url) {
   if(!strcmp(url, "/api/smp/scanpath/remove"))   return scanpath_remove_request(conn);
   if(!strcmp(url, "/api/smp/scanpath/clear"))    return scanpath_clear_request(conn);
   if(!strcmp(url, "/api/smp/scanpath/defaults")) return scanpath_defaults_request(conn);
+  if(!strcmp(url, "/api/smp/config"))    return smp_config_request(conn);
   if(!strcmp(url, "/api/smp/meta"))      return meta_status_request(conn);
   if(!strcmp(url, "/api/smp/meta/run"))  return meta_run_now_request(conn);
   if(!strcmp(url, "/api/smp/meta/poll")) return meta_poll_request(conn);

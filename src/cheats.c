@@ -53,6 +53,7 @@
 #include "ps5/pt.h"
 #include "third_party/cJSON.h"
 #include "third_party/mc4/mc4decrypter.h"
+#include "titleid.h"
 #include "websrv.h"
 
 
@@ -148,28 +149,15 @@ is_safe_title_id(const char *s) {
 
 
 /* Filenames in the cheat store may carry a version suffix and a dot in
-   the basename, e.g. CUSA00004_01.07.json. The base must still start
-   with a valid title id, but the rest is permissive. */
+   the basename, e.g. CUSA00004_01.07.json or SLUS-00001.json. The
+   base must still start with a recognised title id (CUSA/PPSA/ULUS/
+   SLUS/etc., with or without a dash). The normalised separator-free
+   9-char form is what gets returned in `out`, so the rest of the
+   pipeline can compare it against the running-app's bare titleId. */
 static int
 extract_title_id_prefix(const char *filename, char *out, size_t out_size) {
   if(!filename || out_size < 10) return 0;
-  /* CUSA##### or PPSA##### — the first 9 chars. */
-  if(strlen(filename) < 9) return 0;
-  for(int i=0; i<9; i++) {
-    char c = filename[i];
-    if(i < 4) {
-      if(!((c>='A'&&c<='Z') || (c>='a'&&c<='z'))) return 0;
-    } else {
-      if(c < '0' || c > '9') return 0;
-    }
-  }
-  if(strncasecmp(filename, "CUSA", 4) != 0 &&
-     strncasecmp(filename, "PPSA", 4) != 0) {
-    return 0;
-  }
-  memcpy(out, filename, 9);
-  out[9] = 0;
-  return 1;
+  return title_id_normalize(filename, out);
 }
 
 
@@ -279,6 +267,12 @@ get_running_game(pid_t *out_pid, char *out_title, size_t title_size,
   if(out_base) *out_base = kernel_dynlib_mapbase_addr(pid, 0);
   if(out_pid) *out_pid = pid;
   return 0;
+}
+
+
+int
+cheats_game_running(void) {
+  return get_running_game(NULL, NULL, 0, NULL) == 0 ? 1 : 0;
 }
 
 
@@ -669,14 +663,36 @@ write_file_bytes(const char *path, const void *data, size_t len) {
 #define ROUND_PG_UP(x)   (((uintptr_t)(x) + 0x3fff) & ~(uintptr_t)0x3fff)
 
 
+/* Return values:
+     0  -> bytes are now exactly `data` on the target side
+    -1  -> pt_copyin failed (write rejected by kernel)
+    -2  -> pt_copyout failed (read-back path broken)
+    -3  -> readback bytes do not match `data` — write silently lost,
+           usually a sign that the cheat is for a different patch
+           level of the game and the page is not where we think it is
+   The pattern mirrors etaHEN's CheatManager.cpp ToggleCheat: mprotect
+   to RWX, write, mprotect again (defends against the kernel/AC
+   re-protecting between calls), readback, byte-compare. */
 static int
 write_process_memory(pid_t pid, intptr_t addr, const uint8_t *data,
                      size_t len) {
   intptr_t page = (intptr_t)ROUND_PG_DOWN((uintptr_t)addr);
   size_t span = (size_t)(ROUND_PG_UP((uintptr_t)addr + len) -
                          (uintptr_t)page);
+
   kernel_mprotect(pid, page, span, PROT_READ | PROT_WRITE | PROT_EXEC);
   if(pt_copyin(pid, data, addr, len) < 0) return -1;
+  kernel_mprotect(pid, page, span, PROT_READ | PROT_WRITE | PROT_EXEC);
+
+  uint8_t verify[256];
+  size_t off = 0;
+  while(off < len) {
+    size_t chunk = len - off;
+    if(chunk > sizeof(verify)) chunk = sizeof(verify);
+    if(pt_copyout(pid, addr + (intptr_t)off, verify, chunk) < 0) return -2;
+    if(memcmp(verify, data + off, chunk) != 0) return -3;
+    off += chunk;
+  }
   return 0;
 }
 
@@ -697,13 +713,21 @@ apply_cheat(const char *title_id, int mod_index, int turn_on,
     snprintf(err, err_size, "no game is currently running");
     return -1;
   }
-  /* Match by title-id prefix (CUSA00004 vs CUSA00004_01) — running app
-     reports the bare CUSA, cheat file uses bare CUSA. */
-  if(strncmp(running_title, title_id, 9) != 0) {
-    snprintf(err, err_size,
-             "running game (%s) does not match cheat target (%s)",
-             running_title, title_id);
-    return -1;
+  /* Match running game ↔ cheat target after normalising both sides:
+     strip any dash/underscore separator and uppercase the prefix.
+     Running big-app reports the bare 9-char form (CUSA00004), but a
+     cheat file may have been authored with a dash (SLUS-00001) or in
+     lowercase. */
+  {
+    char run_norm[10], cheat_norm[10];
+    if(!title_id_normalize(running_title, run_norm) ||
+       !title_id_normalize(title_id, cheat_norm) ||
+       strcmp(run_norm, cheat_norm) != 0) {
+      snprintf(err, err_size,
+               "running game (%s) does not match cheat target (%s)",
+               running_title, title_id);
+      return -1;
+    }
   }
   int kind = 0;
   if(!find_cheat_file_for_title(title_id, path, sizeof(path), &kind)) {
@@ -732,9 +756,17 @@ apply_cheat(const char *title_id, int mod_index, int turn_on,
       return -1;
     }
   } else if(kind == 3) { /* MC4 */
+    /* Don't free(txt) here on success — the common cleanup below does
+       it. The previous code freed it twice on the MC4 happy path
+       (here, then again at the end), tripping libc's heap consistency
+       check, which calls abort() and reaps the loader process with
+       SIGABRT — visible to the user as "Abort Trap 6" on the PS5
+       screen plus a dropped HTTP server (the symptom that got
+       reported as "Network Fetch Issue" the moment the toggle was
+       clicked on an MC4 cheat). */
     char *xml = mc4_decrypt_to_xml(txt, len, NULL);
-    free(txt);
     if(!xml) {
+      free(txt);
       snprintf(err, err_size,
                "MC4 decrypt failed for %s — file may be corrupt", path);
       return -1;
@@ -742,6 +774,7 @@ apply_cheat(const char *title_id, int mod_index, int turn_on,
     converted = shn_xml_to_json(xml, strlen(xml));
     free(xml);
     if(!converted) {
+      free(txt);
       snprintf(err, err_size, "MC4 XML parse failed for %s", path);
       return -1;
     }
@@ -819,11 +852,21 @@ apply_cheat(const char *title_id, int mod_index, int turn_on,
       continue;
     }
 
-    if(write_process_memory(pid, addr, data, wlen) != 0) {
-      snprintf(err, err_size, "memory write failed at 0x%lx", (long)addr);
-      free(on_bytes); free(off_bytes);
-      rc = -1;
-      break;
+    {
+      int wrc = write_process_memory(pid, addr, data, wlen);
+      if(wrc != 0) {
+        const char *what =
+          (wrc == -1) ? "kernel rejected the write"
+        : (wrc == -2) ? "could not read back the patched bytes"
+        :               "patch did not stick — wrong cheat for this "
+                        "build of the game (try a fresh download or "
+                        "match the eboot patch level)";
+        snprintf(err, err_size, "%s at 0x%lx (len %zu)",
+                 what, (long)addr, wlen);
+        free(on_bytes); free(off_bytes);
+        rc = -1;
+        break;
+      }
     }
 
     free(on_bytes);

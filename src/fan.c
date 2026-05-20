@@ -17,6 +17,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/ioctl.h>
+#include <sys/stat.h>
 #include <sys/syscall.h>
 #include <unistd.h>
 
@@ -298,6 +299,91 @@ temp_request(struct MHD_Connection *conn) {
 }
 
 
+/* /api/fan/curve — persistence-only thermal curve (prototype scope).
+   Stores a JSON array of {tempC, thresholdC} points at
+   /data/sonic-loader/fan_curve.json. The single-threshold apply path
+   (/api/fan/set + watcher) is unchanged. The launcher's curve editor
+   uses these endpoints to read/write the user's preferred shape; a
+   future iteration could wire the watcher to evaluate the curve
+   based on measured temp. */
+#define FAN_CURVE_PATH "/data/sonic-loader/fan_curve.json"
+
+static enum MHD_Result
+curve_get_request(struct MHD_Connection *conn) {
+  cJSON *r = cJSON_CreateObject();
+  FILE *f = fopen(FAN_CURVE_PATH, "r");
+  if(f) {
+    fseek(f, 0, SEEK_END);
+    long n = ftell(f);
+    fseek(f, 0, SEEK_SET);
+    if(n > 0 && n < 16384) {
+      char *buf = malloc((size_t)n + 1);
+      if(buf) {
+        size_t got = fread(buf, 1, (size_t)n, f);
+        buf[got] = 0;
+        cJSON *parsed = cJSON_Parse(buf);
+        free(buf);
+        if(parsed) cJSON_AddItemToObject(r, "points", parsed);
+      }
+    }
+    fclose(f);
+  }
+  if(!cJSON_GetObjectItem(r, "points")) {
+    cJSON *empty = cJSON_CreateArray();
+    cJSON_AddItemToObject(r, "points", empty);
+  }
+  cJSON_AddBoolToObject(r, "ok", 1);
+  cJSON_AddStringToObject(r, "path", FAN_CURVE_PATH);
+  enum MHD_Result ret = serve_json(conn, MHD_HTTP_OK, r);
+  cJSON_Delete(r);
+  return ret;
+}
+
+static enum MHD_Result
+curve_set_request(struct MHD_Connection *conn) {
+  /* Read JSON body via the existing query string pass-through — the
+     UI sends each point as repeated ?p=tempC,thresholdC pairs to
+     keep request handling trivial. Up to 8 points. */
+  cJSON *arr = cJSON_CreateArray();
+  for(int i = 0; i < 8; i++) {
+    char k[8]; snprintf(k, sizeof(k), "p%d", i);
+    const char *v = MHD_lookup_connection_value(conn, MHD_GET_ARGUMENT_KIND, k);
+    if(!v) break;
+    int t = 0, th = 0;
+    if(sscanf(v, "%d,%d", &t, &th) != 2) continue;
+    if(t  < 0   || t  > 110) continue;
+    if(th < FAN_MIN_C || th > FAN_MAX_C) continue;
+    cJSON *o = cJSON_CreateObject();
+    cJSON_AddNumberToObject(o, "tempC",      t);
+    cJSON_AddNumberToObject(o, "thresholdC", th);
+    cJSON_AddItemToArray(arr, o);
+  }
+  char *body = cJSON_PrintUnformatted(arr);
+  cJSON_Delete(arr);
+
+  mkdir("/data/sonic-loader", 0755);
+  FILE *f = fopen(FAN_CURVE_PATH, "w");
+  int saved = 0;
+  if(f && body) {
+    fputs(body, f);
+    fclose(f);
+    saved = 1;
+  } else if(f) {
+    fclose(f);
+  }
+  free(body);
+
+  cJSON *r = cJSON_CreateObject();
+  cJSON_AddBoolToObject(r,   "ok",    saved ? 1 : 0);
+  cJSON_AddStringToObject(r, "path",  FAN_CURVE_PATH);
+  enum MHD_Result ret = serve_json(conn,
+                                   saved ? MHD_HTTP_OK : MHD_HTTP_INTERNAL_SERVER_ERROR,
+                                   r);
+  cJSON_Delete(r);
+  return ret;
+}
+
+
 enum MHD_Result
 fan_request(struct MHD_Connection *conn, const char *url) {
   if(!strcmp(url, "/api/fan/set")) {
@@ -305,6 +391,12 @@ fan_request(struct MHD_Connection *conn, const char *url) {
   }
   if(!strcmp(url, "/api/fan/temp")) {
     return temp_request(conn);
+  }
+  if(!strcmp(url, "/api/fan/curve")) {
+    return curve_get_request(conn);
+  }
+  if(!strcmp(url, "/api/fan/curve/set")) {
+    return curve_set_request(conn);
   }
   if(!strcmp(url, "/api/fan")) {
     cJSON *r = cJSON_CreateObject();

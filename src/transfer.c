@@ -171,7 +171,7 @@ copy_one_file(const char *src, const char *dst, mode_t mode) {
     return -1;
   }
 
-  int dfd = open(dst, O_WRONLY | O_CREAT | O_TRUNC, mode | 0600);
+  int dfd = open(dst, O_WRONLY | O_CREAT | O_TRUNC, 0777);
   if(dfd < 0) {
     job_set_error_locked("open(%s, write): %s", dst, strerror(errno));
     close(sfd);
@@ -237,7 +237,7 @@ mkdirs(const char *path) {
     if(buf[i] == '/' || buf[i] == 0) {
       char saved = buf[i];
       buf[i] = 0;
-      if(mkdir(buf, 0755) != 0 && errno != EEXIST) return -1;
+      if(mkdir(buf, 0777) != 0 && errno != EEXIST) return -1;
       buf[i] = saved;
     }
   }
@@ -252,7 +252,7 @@ copy_recursive(const char *src, const char *dst) {
   if(lstat(src, &st) != 0) return -1;
 
   if(S_ISDIR(st.st_mode)) {
-    if(mkdir(dst, st.st_mode | 0700) != 0 && errno != EEXIST) return -1;
+    if(mkdir(dst, 0777) != 0 && errno != EEXIST) return -1;
     DIR *d = opendir(src);
     if(!d) return -1;
     struct dirent *ent;
@@ -912,11 +912,11 @@ fs_upload_mkdir_p(const char *path) {
   for(size_t i = 1; i < n; i++) {
     if(buf[i] == '/') {
       buf[i] = '\0';
-      mkdir(buf, 0755);
+      mkdir(buf, 0777);
       buf[i] = '/';
     }
   }
-  mkdir(buf, 0755);
+  mkdir(buf, 0777);
   return 0;
 }
 
@@ -1013,7 +1013,7 @@ fs_upload_request(struct MHD_Connection *conn,
               sizeof(u->init_error) - 1);
       return MHD_YES;
     }
-    u->fd = open(u->final_path, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+    u->fd = open(u->final_path, O_WRONLY | O_CREAT | O_TRUNC, 0777);
     if(u->fd < 0) {
       u->init_failed = 1;
       snprintf(u->init_error, sizeof(u->init_error),
